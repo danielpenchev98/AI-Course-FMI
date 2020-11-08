@@ -193,7 +193,7 @@ void IDA(int** startBoard) {
 }
 
 
-int mainN() {
+int main() {
 	int numberOfTiles = -1;
 	std::cin >> numberOfTiles;
 	sizeOfBoard = sqrt(numberOfTiles + 1);
