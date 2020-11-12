@@ -4,14 +4,13 @@
 #include <time.h>  
 #include <random>
 #include <chrono>
-#include <list>
-//#include <unordered_map>
 
 int sizeOfBoardd;
 int* queens;
 int* rows;
-int* diagonal1;
-int* diagonal2;
+int* diagonal1; //array of all diagonals x1 - y1 = x2 - y2 
+int* diagonal2; //array of all diagonals x1 + y1 = x2 + y2
+
 int* container;
 
 const int k = 1000;
@@ -31,21 +30,20 @@ inline int getConflicts(int x, int y) {
 		rows[y];
 }
 
-inline void updateConflictStatistics(const int queen, const int newRow) {
+inline void updateConflictStatistics(const int queenIdx, const int newRow) {
 	//if the queen wasnt place on the board before
-	if (queens[queen] != -1) {
-		rows[queens[queen]]--;
-		diagonal1[getDiag1Index(queen, queens[queen])]--;
-		diagonal2[getDiag2Index(queen, queens[queen])]--;
+	if (queens[queenIdx] != -1) {
+		rows[queens[queenIdx]]--;
+		diagonal1[getDiag1Index(queenIdx, queens[queenIdx])]--;
+		diagonal2[getDiag2Index(queenIdx, queens[queenIdx])]--;
 	}
 
-	queens[queen] = newRow;
+	queens[queenIdx] = newRow;
 
 	rows[newRow]++;
-	diagonal1[getDiag1Index(queen, newRow)]++;
-	diagonal2[getDiag2Index(queen, newRow)]++;
+	diagonal1[getDiag1Index(queenIdx, newRow)]++;
+	diagonal2[getDiag2Index(queenIdx, newRow)]++;
 }
-
 
 void initializeBoard() {
 
@@ -89,11 +87,11 @@ void initializeBoard() {
 	}
 }
 
-
-inline std::pair<int,int> getMaxConflictQueen() {
+inline const std::pair<int,int> getMaxConflictQueen() {
 	int frontConflicts = 0;
 	int bestCount = 0;
 	for (int i = 0; i < sizeOfBoardd; i++) {
+		//-3 -> the queen is on this tile, which results in +1 conflict in row, +1 conflict in each of the diagonals
 		const int conflicts = getConflicts(i,queens[i]) - 3;
 
 		if (bestCount == 0 || frontConflicts == conflicts) {
@@ -121,7 +119,6 @@ inline int getLeastConflictRow(const int queen) {
 		if (currentRow == i) {
 			continue;
 		}
-		
 		const int collisions = getConflicts(queen,i);
 
 		if (bestCount == 0 || frontCollisions == collisions) {
@@ -154,7 +151,7 @@ void minimumConflict() {
 		updateConflictStatistics(maxConflictQueen.first, leastConflictRow);
 	}
 
-	std::cout << "restart" << std::endl;
+	//std::cout << "restart" << std::endl;
 	minimumConflict();
 }
 
@@ -183,7 +180,9 @@ int main() {
 	std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
 	std::cout << "Time consumed :" << std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count() << std::endl;
 
-	//printBoard();
+	if (sizeOfBoardd <= 50) {
+		printBoard();
+	}
 
 	return 0;
 }
