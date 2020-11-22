@@ -24,7 +24,7 @@ inline int getDiag2Index(const int x, const int y) {
 	return x + y;
 }
 
-inline int getConflicts(int x, int y) {
+inline int getConflicts(const int x, const int y) {
 	return diagonal1[getDiag1Index(x, y)] +
 		diagonal2[getDiag2Index(x, y)] +
 		rows[y];
@@ -140,6 +140,7 @@ inline int getLeastConflictRow(const int queen) {
 
 void minimumConflict() {
 	initializeBoard();
+
 	int maxConflictQueen = -1;
 	for (int i = 0; i <= k * sizeOfBoardd; i++) {
 		const std::pair<int,int>& maxConflictQueen = getMaxConflictQueen();
@@ -150,8 +151,7 @@ void minimumConflict() {
 
 		updateConflictStatistics(maxConflictQueen.first, leastConflictRow);
 	}
-
-	//std::cout << "restart" << std::endl;
+	std::cout << "restart" << std::endl;
 	minimumConflict();
 }
 
@@ -168,15 +168,15 @@ void printBoard() {
 int main() {
 	std::cin >> sizeOfBoardd;
 
-	std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
-
 	queens = new int[sizeOfBoardd];
 	rows = new int[sizeOfBoardd];
 	container = new int[sizeOfBoardd];
 	diagonal1 = new int[2*sizeOfBoardd-1];
 	diagonal2 = new int[2*sizeOfBoardd-1];
 
-	minimumConflict();
+	std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+	initializeBoard();
+	//minimumConflict();
 	std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
 	std::cout << "Time consumed :" << std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count() << std::endl;
 

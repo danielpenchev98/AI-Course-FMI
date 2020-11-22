@@ -184,6 +184,7 @@ void IDA(int** startBoard) {
 	const int startHeuristic = calculateManhattan(startBoard);
 	int threshold = startHeuristic;
 	while (true) {
+		//std::cout << "threshold :" << threshold << std::endl;
 		int answer = search(startBoard, emptyTilePos, 0, threshold, none, startHeuristic);
 		if (answer == 0) {
 			break;
@@ -191,7 +192,6 @@ void IDA(int** startBoard) {
 		threshold = answer;
 	}
 }
-
 
 int main() {
 	int numberOfTiles = -1;
