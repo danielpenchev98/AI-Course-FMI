@@ -1,13 +1,13 @@
 package state
 
-
 import (
 	"strings"
 	"fmt"
+	"math/rand"
+	"time"
 )
 
 const maxDepth = 9
-
 
 type Histogram struct {
 	rows      []int
@@ -45,12 +45,12 @@ func CreateState() *State{
 	return &state
 }
 
-func (s *State) PlayMove(playerNumber int, x int, y int) {
+func (s *State) PlayMove(playerNumber int, y int, x int) {
 	s.board[y][x] = playerNumber
 	delete(s.freeTiles, y*3+x)
 
 	offset := 1
-	if(playerNumber == 2){
+	if playerNumber == 0 {
 		offset = -1
 	}
 	
@@ -64,12 +64,12 @@ func (s *State) PlayMove(playerNumber int, x int, y int) {
 	}
 }
 
-func (s *State) UndoMove(playerNumber int, x int, y int) {
+func (s *State) UndoMove(playerNumber int, y int, x int) {
 	s.board[y][x] = -1
 	s.freeTiles[y*3+x] = emptyStruct
 
 	offset := -1
-	if playerNumber == 2{
+	if playerNumber == 0 {
 		offset = 1
 	}
 	
@@ -77,7 +77,8 @@ func (s *State) UndoMove(playerNumber int, x int, y int) {
 	s.cols[x] = s.cols[x] + offset
 	if x == y {
 		s.diags[0] = s.diags[0] + offset
-	} else if x+y == 2 {
+	}
+	if x+y == 2 {
 		s.diags[1] = s.diags[1] + offset
 	}
 }
@@ -106,17 +107,27 @@ func (s *State) String() string {
 	return sb.String()
 }
 
-func (s *State) IsWon() bool {
+func (s *State) GetWinner() (int,bool) {
 	for i := 0; i < len(s.board); i++ {
-		if s.rows[i] == -3 || s.rows[i] == 3 || s.cols[i] == -3 || s.cols[i] == 3 {
-			return true
+		if s.rows[i] == -3 || s.cols[i] == -3 {
+			return 0, true
+		} else if s.rows[i] == 3 || s.cols[i] == 3{
+			return 1, true
 		}
 	}
-	return s.diags[0] == -3 || s.diags[0] == 3 || s.diags[1] == -3 || s.diags[1] == 3
+
+	if s.diags[0] == -3 || s.diags[1] == -3 {
+		return 0, true
+	} else if s.diags[0] == 3 || s.diags[1] == 3 {
+		return 1, true
+	}
+
+	return -1, false
 }
 
 func (s *State) IsTerminal() bool {
-	return len(s.freeTiles)==0 || s.IsWon()
+	_, ok := s.GetWinner()
+	return len(s.freeTiles)==0 || ok
 }
 
 func (s *State) GetNeightbours() []int{
@@ -126,5 +137,17 @@ func (s *State) GetNeightbours() []int{
 		neightbours[iter]=key
 		iter++
 	}
+	rand.Seed(time.Now().UnixNano())
+	rand.Shuffle(len(neightbours), func(i, j int) { neightbours[i], neightbours[j] = neightbours[j], neightbours[i] })
 	return neightbours
+}
+
+func (s *State) PrintHistogram() {
+	for i:=0;i<3;i++{
+		fmt.Printf("s.col[%d]=%d\n",i,s.cols[i])
+		fmt.Printf("s.row[%d]=%d\n",i,s.rows[i])
+	}
+
+	fmt.Printf("s.diags[%d]=%d\n",0,s.diags[0])
+	fmt.Printf("s.diags[%d]=%d\n",1,s.diags[1])
 }
