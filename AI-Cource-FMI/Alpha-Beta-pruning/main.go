@@ -8,20 +8,16 @@ import (
 
 func moveMax(s *state.State, alpha int, beta int, output string) (int, int) {
 	if s.IsTerminal() {
-		if _, ok := s.GetWinner(); ok {
-	//		fmt.Printf("%sMe terminal value reached with heurisitc %d\n",output,s.CalculateHeuristic()+1) 
-			return -(s.CalculateHeuristic()+1), -1
-		}
-	//	fmt.Println("%sterminal value reached with heurisitc 0",output)
-		return 0, -1
+		return s.Utility(), -1
 	}
 
 	bestUtility := commons.MinInt
 	bestMove := -1
 
 	for _, tile := range s.GetNeightbours() {
-		//fmt.Printf("%sneighbour %d\n",output,tile)
-
+		//if tile != 4 {
+		//	continue
+		//}
 		row, col := commons.IndexToPosition(tile)		
 		s.PlayMove(1, row, col)
 		currUtility, _ := moveMin(s, alpha, beta,output+" ")
@@ -41,14 +37,12 @@ func moveMax(s *state.State, alpha int, beta int, output string) (int, int) {
 }
 
 func moveMin(s *state.State, alpha int, beta int, output string) (int, int) {
+//	fmt.Println(s)
 	if s.IsTerminal() {
-		if _, ok := s.GetWinner(); ok {
-	//		fmt.Printf("%sAI terminal value reached with heurisitc %d\n",output,s.CalculateHeuristic()+1)
-			return s.CalculateHeuristic()+1, -1
-		}
-	//  	fmt.Println("%sterminal value reached with heurisitc 0",output)
-		return 0, -1
+		return s.Utility(), -1
 	}
+
+//	fmt.Println("LOL")
 
 	bestUtility := commons.MaxInt
 	bestMove := -1
@@ -75,6 +69,26 @@ func moveMin(s *state.State, alpha int, beta int, output string) (int, int) {
 func playGame(playerNumber int) {
 	game := state.CreateState()
 
+	// 1 0 1
+	// ? ? ?
+	// 1 ? 0 
+  
+
+
+	game.PlayMove(0,0,0)
+	game.PlayMove(1,0,1)
+	game.PlayMove(1,2,2)
+	game.PlayMove(0,2, 0)
+	game.PlayMove(0,0, 2)
+	game.PrintHistogram()
+	fmt.Println(game.Utility())
+	
+	//  1 -1 -1
+	// -1 0 -1
+	// -1 -1  1
+
+	//game.PlayMove(0,1,1)
+	//game.PlayMove(1,2,2)
 	var x, y, mark int
 	for i := 1; i < 10; i++ {
 		if i%2 == playerNumber {
@@ -83,13 +97,13 @@ func playGame(playerNumber int) {
 			mark = playerNumber
 		} else {
 			fmt.Println("AI's turn")
-			heur, move := moveMax(game, commons.MinInt, commons.MaxInt,"")
+			heur, move := moveMin(game, commons.MinInt, commons.MaxInt,"")
 			y, x = commons.IndexToPosition(move)
 			fmt.Printf("The AI moved on position (%d,%d) with heuristic %d\n", y, x, heur)
 			mark = (playerNumber+1)%2
 		}
 		game.PlayMove(mark, y, x)
-		game.PrintHistogram()
+		//game.PrintHistogram()
 		fmt.Printf("Game board :\n%s",game)
 
 		if game.IsTerminal() {

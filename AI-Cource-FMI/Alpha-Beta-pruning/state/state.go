@@ -10,9 +10,9 @@ import (
 const maxDepth = 9
 
 type Histogram struct {
-	rows      []int
-	cols      []int
-	diags     []int
+	rows      [][]int
+	cols      [][]int
+	diags     [][]int
 }
 
 type State struct {
@@ -32,9 +32,21 @@ func CreateState() *State{
 			{-1, -1, -1},
 		},
 		Histogram: Histogram{
-			rows:  []int{0, 0, 0},
-			cols:  []int{0, 0, 0},
-			diags: []int{0, 0},
+			rows:  [][]int{
+				{0, 0},
+				{0, 0},
+				{0, 0},
+			},
+			cols:  [][]int{
+				{0, 0},
+				{0, 0},
+				{0, 0},
+			},
+			diags: [][]int{
+				{0, 0},
+				{0, 0},
+				{0, 0},
+			},
 		},
 	}
 
@@ -48,38 +60,28 @@ func CreateState() *State{
 func (s *State) PlayMove(playerNumber int, y int, x int) {
 	s.board[y][x] = playerNumber
 	delete(s.freeTiles, y*3+x)
-
-	offset := 1
-	if playerNumber == 0 {
-		offset = -1
-	}
 	
-	s.rows[y] = s.rows[y] + offset
-	s.cols[x] = s.cols[x] + offset
+	s.rows[y][playerNumber]++
+	s.cols[x][playerNumber]++
 	if x == y {
-		s.diags[0] = s.diags[0] + offset
+		s.diags[0][playerNumber]++
 	}
 	if x+y == 2 {
-		s.diags[1] = s.diags[1] + offset
+		s.diags[1][playerNumber]++
 	}
 }
 
 func (s *State) UndoMove(playerNumber int, y int, x int) {
 	s.board[y][x] = -1
 	s.freeTiles[y*3+x] = emptyStruct
-
-	offset := -1
-	if playerNumber == 0 {
-		offset = 1
-	}
 	
-	s.rows[y] = s.rows[y] + offset
-	s.cols[x] = s.cols[x] + offset
+	s.rows[y][playerNumber]--
+	s.cols[x][playerNumber]--
 	if x == y {
-		s.diags[0] = s.diags[0] + offset
+		s.diags[0][playerNumber]--
 	}
 	if x+y == 2 {
-		s.diags[1] = s.diags[1] + offset
+		s.diags[1][playerNumber]--
 	}
 }
 
@@ -96,6 +98,76 @@ func (s *State) CalculateHeuristic() int {
 	return maxDepth - currDepth
 }
 
+func (s *State) Utility() int{
+	return s.getColsScore() + s.getRowsScore() + s.getDiagsScore()
+}
+
+func (s *State) getRowsScore() int {
+	var score int
+	for i:=0;i<len(s.board);i++{
+		multiplier := -1
+		for j:=0;j<2;j++{
+			if s.rows[i][j] == 3 {
+				score += 100 * multiplier
+			} else if s.rows[i][j]==2 {
+				score +=10 * multiplier
+			}
+			multiplier+=2
+		}
+		
+		if s.rows[i][1] == 1 && s.rows[i][0] == 0{
+			score += 1
+		} else if s.rows[i][1] == 0 && s.rows[i][0] == 1 {
+			score -=1
+		}
+	}
+	return score
+}
+
+func (s *State) getColsScore() int {
+	var score int
+	for i:=0;i<len(s.board);i++{
+		multiplier := -1
+		for j:=0;j<2;j++{
+			if s.cols[i][j] == 3 {
+				score += 100 * multiplier
+			} else if s.cols[i][j]==2 {
+				score +=10 * multiplier
+			}
+			multiplier+=2
+		}
+		
+		if s.cols[i][1] == 1 && s.cols[i][0] == 0{
+			score += 1
+		} else if s.cols[i][1] == 0 && s.cols[i][0] == 1 {
+			score -=1
+		}
+	}
+	return score
+}
+
+func (s *State) getDiagsScore() int {
+	var score int
+	for i:=0 ; i< 2;i++{
+		multiplier := -1
+		for j:=0;j<2;j++{
+			if s.diags[i][j] == 3 {
+				score += 100 * multiplier
+			} else if s.diags[i][j]==2 {
+				score +=10 * multiplier
+			}
+			multiplier+=2
+		}
+
+		if  s.diags[i][1]==1 && s.diags[i][0]==0{
+			score +=1
+		} else if s.diags[i][1]==0 && s.diags[i][0]==1 {
+			score -=1
+		}
+	}
+	return score
+}
+
 func (s *State) String() string {
 	var sb strings.Builder
 	for i := 0; i < len(s.board); i++ {
@@ -108,20 +180,10 @@ func (s *State) String() string {
 }
 
 func (s *State) GetWinner() (int,bool) {
-	for i := 0; i < len(s.board); i++ {
-		if s.rows[i] == -3 || s.cols[i] == -3 {
-			return 0, true
-		} else if s.rows[i] == 3 || s.cols[i] == 3{
-			return 1, true
-		}
+	score := s.Utility()
+	if score*score >= 100*100{
+		return score, true
 	}
-
-	if s.diags[0] == -3 || s.diags[1] == -3 {
-		return 0, true
-	} else if s.diags[0] == 3 || s.diags[1] == 3 {
-		return 1, true
-	}
-
 	return -1, false
 }
 
@@ -144,10 +206,14 @@ func (s *State) GetNeightbours() []int{
 
 func (s *State) PrintHistogram() {
 	for i:=0;i<3;i++{
-		fmt.Printf("s.col[%d]=%d\n",i,s.cols[i])
-		fmt.Printf("s.row[%d]=%d\n",i,s.rows[i])
+		for j:=0;j<2;j++{
+			fmt.Printf("s.col[%d][%d]=%d\n",i,j,s.cols[i][j])
+			fmt.Printf("s.row[%d][%d]=%d\n",i,j,s.rows[i][j])
+		}
 	}
 
-	fmt.Printf("s.diags[%d]=%d\n",0,s.diags[0])
-	fmt.Printf("s.diags[%d]=%d\n",1,s.diags[1])
+	fmt.Printf("s.diags[%d][%d]=%d\n",0,0,s.diags[0][0])
+	fmt.Printf("s.diags[%d][%d]=%d\n",0,1,s.diags[0][1])
+	fmt.Printf("s.diags[%d][%d]=%d\n",1,0,s.diags[1][0])
+	fmt.Printf("s.diags[%d][%d]=%d\n",1,1,s.diags[1][1])
 }
