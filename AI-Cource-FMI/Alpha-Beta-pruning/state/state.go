@@ -1,153 +1,212 @@
 package state
 
 import (
-	"strings"
-	"fmt"
-	"math/rand"
+    "strings"
+    "fmt"
+  	"math/rand"
 	"time"
+	"errors"
 )
 
 const maxDepth = 9
 
 type Histogram struct {
-	rows      []int
-	cols      []int
-	diags     []int
+    rows      [][]int
+    cols      [][]int
+    diags     [][]int //every diagonal has 2 values -> first one is number of tiles placed by first player on the diagonal, the second one is for the second player
 }
 
 type State struct {
-	freeTiles map[int]struct{}
+    freeTiles map[int]struct{}
 	board     [][]int
-	Histogram
+	winner int //-1 noone yet or draw, 0 second player, 1 first player
+    Histogram
 }
 
 var emptyStruct struct{}
 
 func CreateState() *State{
-	state := State{
-		freeTiles: make(map[int]struct{}),
-		board: [][]int{
-			{-1, -1, -1},
-			{-1, -1, -1},
-			{-1, -1, -1},
+    state := State{
+        freeTiles: make(map[int]struct{}),
+        board: [][]int{
+            {-1, -1, -1},
+            {-1, -1, -1},
+            {-1, -1, -1},
 		},
-		Histogram: Histogram{
-			rows:  []int{0, 0, 0},
-			cols:  []int{0, 0, 0},
-			diags: []int{0, 0},
-		},
-	}
+		winner: -1,
+        Histogram: Histogram{
+            rows:  [][]int{
+                {0, 0},
+                {0, 0},
+                {0, 0},
+            },
+            cols:  [][]int{
+                {0, 0},
+                {0, 0},
+                {0, 0},
+            },
+            diags: [][]int{
+                {0, 0},
+                {0, 0},
+                {0, 0},
+            },
+        },
+    }
 
-	for i := 0; i < 9; i++ {
-		state.freeTiles[i] = emptyStruct
-	}
+    for i := 0; i < 9; i++ {
+        state.freeTiles[i] = emptyStruct
+    }
 
-	return &state
+    return &state
 }
 
 func (s *State) PlayMove(playerNumber int, y int, x int) {
-	s.board[y][x] = playerNumber
-	delete(s.freeTiles, y*3+x)
-
-	offset := 1
-	if playerNumber == 0 {
-		offset = -1
+    s.board[y][x] = playerNumber
+    delete(s.freeTiles, y*3+x)
+    
+    s.rows[y][playerNumber]++
+    s.cols[x][playerNumber]++
+    if x == y {
+        s.diags[0][playerNumber]++
+    }
+    if x+y == 2 {
+        s.diags[1][playerNumber]++
 	}
 	
-	s.rows[y] = s.rows[y] + offset
-	s.cols[x] = s.cols[x] + offset
-	if x == y {
-		s.diags[0] = s.diags[0] + offset
-	}
-	if x+y == 2 {
-		s.diags[1] = s.diags[1] + offset
+	if s.rows[y][playerNumber] == 3 || s.cols[x][playerNumber] == 3 || s.diags[0][playerNumber]==3 || s.rows[y][playerNumber]==3{
+		s.winner = playerNumber
 	}
 }
 
 func (s *State) UndoMove(playerNumber int, y int, x int) {
-	s.board[y][x] = -1
-	s.freeTiles[y*3+x] = emptyStruct
-
-	offset := -1
-	if playerNumber == 0 {
-		offset = 1
-	}
+    s.board[y][x] = -1
+    s.freeTiles[y*3+x] = emptyStruct
 	
-	s.rows[y] = s.rows[y] + offset
-	s.cols[x] = s.cols[x] + offset
-	if x == y {
-		s.diags[0] = s.diags[0] + offset
+	if s.rows[y][playerNumber] == 3 || s.cols[x][playerNumber] == 3 || s.diags[0][playerNumber]==3 || s.rows[y][playerNumber]==3{
+		s.winner = -1
 	}
-	if x+y == 2 {
-		s.diags[1] = s.diags[1] + offset
-	}
+
+    s.rows[y][playerNumber]--
+    s.cols[x][playerNumber]--
+    if x == y {
+        s.diags[0][playerNumber]--
+    }
+    if x+y == 2 {
+        s.diags[1][playerNumber]--
+    }
 }
 
-func (s *State) CalculateHeuristic() int {
-	var currDepth int
-	for i := 0; i < len(s.board); i++ {
-		for j := 0; j < len(s.board); j++ {
-			if s.board[i][j] != -1 {
-				currDepth++
-			}
-		}
-	}
+func (s *State) Utility() int{
+    return s.getColsScore() + s.getRowsScore() + s.getDiagsScore()
+}
 
-	return maxDepth - currDepth
+func (s *State) getRowsScore() int {
+    var score int
+    for i:=0;i<len(s.board);i++{
+        multiplier := -1
+        for j:=0;j<2;j++{
+            if s.rows[i][j] == 3 {
+                score += 100 * multiplier
+            } else if s.rows[i][j]==2 && s.rows[i][(j+1)%2]==0{
+                score +=10 * multiplier
+            }
+            multiplier+=2
+        }
+        
+        if s.rows[i][1] == 1 && s.rows[i][0] == 0{
+            score += 1
+        } else if s.rows[i][1] == 0 && s.rows[i][0] == 1 {
+            score -=1
+        }
+    }
+    return score
+}
+
+func (s *State) getColsScore() int {
+    var score int
+    for i:=0;i<len(s.board);i++{
+        multiplier := -1
+        for j:=0;j<2;j++{
+            if s.cols[i][j] == 3 {
+                score += 100 * multiplier
+            } else if s.cols[i][j]==2 && s.cols[i][(j+1)%2]==0 {
+                score +=10 * multiplier
+            }
+            multiplier+=2
+        }
+        
+        if s.cols[i][1] == 1 && s.cols[i][0] == 0{
+            score += 1
+        } else if s.cols[i][1] == 0 && s.cols[i][0] == 1 {
+            score -=1
+        }
+    }
+    return score
+}
+
+func (s *State) getDiagsScore() int {
+    var score int
+    for i:=0 ; i< 2;i++{
+        multiplier := -1
+        for j:=0;j<2;j++{
+            if s.diags[i][j] == 3 {
+                score += 100 * multiplier
+            } else if s.diags[i][j]==2 && s.diags[i][(j+1)%2]==0 {
+                score +=10 * multiplier
+            }
+            multiplier+=2
+        }
+
+        if  s.diags[i][1]==1 && s.diags[i][0]==0{
+            score +=1
+        } else if s.diags[i][1]==0 && s.diags[i][0]==1 {
+            score -=1
+        }
+    }
+    return score
 }
 
 func (s *State) String() string {
-	var sb strings.Builder
-	for i := 0; i < len(s.board); i++ {
-		for j := 0; j < len(s.board); j++ {
-			sb.WriteString(fmt.Sprintf("%d ", s.board[i][j]))
-		}
-		sb.WriteString("\n")
-	}
-	return sb.String()
+    var sb strings.Builder
+    for i := 0; i < len(s.board); i++ {
+        for j := 0; j < len(s.board); j++ {
+            sb.WriteString(fmt.Sprintf("%d ", s.board[i][j]))
+        }
+        sb.WriteString("\n")
+    }
+    return sb.String()
 }
 
-func (s *State) GetWinner() (int,bool) {
-	for i := 0; i < len(s.board); i++ {
-		if s.rows[i] == -3 || s.cols[i] == -3 {
-			return 0, true
-		} else if s.rows[i] == 3 || s.cols[i] == 3{
-			return 1, true
-		}
-	}
+func abs(a int) int{
+    if a>=0{
+        return a
+    }
+    return -a
+}
 
-	if s.diags[0] == -3 || s.diags[1] == -3 {
-		return 0, true
-	} else if s.diags[0] == 3 || s.diags[1] == 3 {
-		return 1, true
+func (s *State) GetWinner() (int,error){
+	if !s.HasWinner(){
+		return -1, errors.New("The game doesnt have a winner")
 	}
+	return s.winner,nil
+}
 
-	return -1, false
+func (s *State) HasWinner() (bool) {
+    return s.winner != -1
 }
 
 func (s *State) IsTerminal() bool {
-	_, ok := s.GetWinner()
-	return len(s.freeTiles)==0 || ok
+    return len(s.freeTiles)==0 || s.HasWinner()
 }
 
 func (s *State) GetNeightbours() []int{
-	neightbours := make([]int,len(s.freeTiles))
-	iter :=0
-	for key,_ := range s.freeTiles {
-		neightbours[iter]=key
-		iter++
-	}
-	rand.Seed(time.Now().UnixNano())
-	rand.Shuffle(len(neightbours), func(i, j int) { neightbours[i], neightbours[j] = neightbours[j], neightbours[i] })
-	return neightbours
-}
-
-func (s *State) PrintHistogram() {
-	for i:=0;i<3;i++{
-		fmt.Printf("s.col[%d]=%d\n",i,s.cols[i])
-		fmt.Printf("s.row[%d]=%d\n",i,s.rows[i])
-	}
-
-	fmt.Printf("s.diags[%d]=%d\n",0,s.diags[0])
-	fmt.Printf("s.diags[%d]=%d\n",1,s.diags[1])
+    neightbours := make([]int,len(s.freeTiles))
+    iter :=0
+    for key,_ := range s.freeTiles {
+        neightbours[iter]=key
+        iter++
+    }
+    rand.Seed(time.Now().UnixNano())
+    rand.Shuffle(len(neightbours), func(i, j int) { neightbours[i], neightbours[j] = neightbours[j], neightbours[i] })
+    return neightbours
 }

@@ -13,7 +13,10 @@ func Max(a int, b int) int {
 }
 
 func Min(a int, b int) int {
-	return Max(-a, -b)
+	if a < b {
+		return a
+	}
+	return b
 }
 
 func IndexToPosition(idx int) (int, int) {
