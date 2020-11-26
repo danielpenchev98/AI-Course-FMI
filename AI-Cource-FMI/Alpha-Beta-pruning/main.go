@@ -81,7 +81,7 @@ func playGame(playerNumber int) {
 			fmt.Println("AI's turn")
 			heur, move := findMoveFunc(game, commons.MinInt, commons.MaxInt)
 			y, x = commons.IndexToPosition(move)
-			fmt.Printf("The AI moved on position (%d,%d)\n", y, x, heur)
+			fmt.Printf("The AI moved on position (%d,%d)\n", y, x)
 			mark = (playerNumber+1)%2
 		}
 		game.PlayMove(mark, y, x)
