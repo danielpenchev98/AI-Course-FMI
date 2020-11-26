@@ -73,7 +73,7 @@ func (s *State) PlayMove(playerNumber int, y int, x int) {
         s.diags[1][playerNumber]++
 	}
 	
-	if s.rows[y][playerNumber] == 3 || s.cols[x][playerNumber] == 3 || s.diags[0][playerNumber]==3 || s.rows[y][playerNumber]==3{
+	if s.rows[y][playerNumber] == 3 || s.cols[x][playerNumber] == 3 || s.diags[0][playerNumber]==3 || s.diags[1][playerNumber]==3{
 		s.winner = playerNumber
 	}
 }
@@ -82,7 +82,7 @@ func (s *State) UndoMove(playerNumber int, y int, x int) {
     s.board[y][x] = -1
     s.freeTiles[y*3+x] = emptyStruct
 	
-	if s.rows[y][playerNumber] == 3 || s.cols[x][playerNumber] == 3 || s.diags[0][playerNumber]==3 || s.rows[y][playerNumber]==3{
+	if s.rows[y][playerNumber] == 3 || s.cols[x][playerNumber] == 3 || s.diags[0][playerNumber]==3 || s.diags[1][playerNumber]==3{
 		s.winner = -1
 	}
 

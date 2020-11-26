@@ -13,7 +13,6 @@ func moveMax(s *state.State, alpha int, beta int) (int, int) {
 
 	bestUtility := commons.MinInt
 	bestMove := -1
-
 	for _, tile := range s.GetNeightbours() {
 		row, col := commons.IndexToPosition(tile)	
 		
@@ -40,9 +39,7 @@ func moveMin(s *state.State, alpha int, beta int) (int, int) {
 	}
 
 	bestUtility := commons.MaxInt
-	
 	bestMove := -1
-
 	for _, tile := range s.GetNeightbours() {
 		row, col := commons.IndexToPosition(tile)
 
@@ -79,7 +76,7 @@ func playGame(playerNumber int) {
 			mark = playerNumber
 		} else {
 			fmt.Println("AI's turn")
-			heur, move := findMoveFunc(game, commons.MinInt, commons.MaxInt)
+			_, move := findMoveFunc(game, commons.MinInt, commons.MaxInt)
 			y, x = commons.IndexToPosition(move)
 			fmt.Printf("The AI moved on position (%d,%d)\n", y, x)
 			mark = (playerNumber+1)%2
