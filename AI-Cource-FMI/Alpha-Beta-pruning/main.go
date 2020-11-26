@@ -6,7 +6,7 @@ import (
 	state "danielpenchev98.com/tictactoe/state" 
 )
 
-func moveMax(s *state.State, alpha int, beta int, output string) (int, int) {
+func moveMax(s *state.State, alpha int, beta int) (int, int) {
 	if s.IsTerminal() {
 		return s.Utility(), -1
 	}
@@ -18,7 +18,7 @@ func moveMax(s *state.State, alpha int, beta int, output string) (int, int) {
 		row, col := commons.IndexToPosition(tile)	
 		
 		s.PlayMove(1, row, col)
-		currUtility, _ := moveMin(s, alpha, beta, output + " ")
+		currUtility, _ := moveMin(s, alpha, beta)
 		s.UndoMove(1,row,col)
 
 		if currUtility > bestUtility {
@@ -34,7 +34,7 @@ func moveMax(s *state.State, alpha int, beta int, output string) (int, int) {
 	return bestUtility, bestMove
 }
 
-func moveMin(s *state.State, alpha int, beta int, output string) (int, int) {
+func moveMin(s *state.State, alpha int, beta int) (int, int) {
 	if s.IsTerminal() {
 		return s.Utility(), -1
 	}
@@ -47,7 +47,7 @@ func moveMin(s *state.State, alpha int, beta int, output string) (int, int) {
 		row, col := commons.IndexToPosition(tile)
 
 		s.PlayMove(0,row,col)
-		currUtility, _ := moveMax(s, alpha, beta,output+" ")
+		currUtility, _ := moveMax(s, alpha, beta)
 		s.UndoMove(0,row,col)
 
 		if currUtility < bestUtility {
@@ -79,7 +79,7 @@ func playGame(playerNumber int) {
 			mark = playerNumber
 		} else {
 			fmt.Println("AI's turn")
-			heur, move := findMoveFunc(game, commons.MinInt, commons.MaxInt, "")
+			heur, move := findMoveFunc(game, commons.MinInt, commons.MaxInt)
 			y, x = commons.IndexToPosition(move)
 			fmt.Printf("The AI moved on position (%d,%d)\n", y, x, heur)
 			mark = (playerNumber+1)%2
