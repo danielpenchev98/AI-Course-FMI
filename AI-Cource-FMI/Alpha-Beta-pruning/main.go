@@ -8,7 +8,6 @@ import (
 
 func moveMax(s *state.State, alpha int, beta int, output string) (int, int) {
 	if s.IsTerminal() {
-	//	fmt.Printf("%sTerminal state with utility %d\n",output,s.Utility())
 		return s.Utility(), -1
 	}
 
@@ -18,7 +17,6 @@ func moveMax(s *state.State, alpha int, beta int, output string) (int, int) {
 	for _, tile := range s.GetNeightbours() {
 		row, col := commons.IndexToPosition(tile)	
 		
-	//	fmt.Printf("%sMAX :Go from %d to tile %d\n",output,currTile,tile)
 		s.PlayMove(1, row, col)
 		currUtility, _ := moveMin(s, alpha, beta, output + " ")
 		s.UndoMove(1,row,col)
@@ -30,7 +28,6 @@ func moveMax(s *state.State, alpha int, beta int, output string) (int, int) {
 		}
 
 		if alpha >= beta {
-		//	fmt.Printf("%scutting off, Alpha %d, Beta %d\n",output,alpha,beta)
 			break
 		}
 	}
@@ -39,7 +36,6 @@ func moveMax(s *state.State, alpha int, beta int, output string) (int, int) {
 
 func moveMin(s *state.State, alpha int, beta int, output string) (int, int) {
 	if s.IsTerminal() {
-		//fmt.Println("WTF")
 		return s.Utility(), -1
 	}
 
@@ -50,11 +46,8 @@ func moveMin(s *state.State, alpha int, beta int, output string) (int, int) {
 	for _, tile := range s.GetNeightbours() {
 		row, col := commons.IndexToPosition(tile)
 
-
-		//fmt.Printf("%sMIN :Go from %d to tile %d\n",output,currTile,tile)
 		s.PlayMove(0,row,col)
 		currUtility, _ := moveMax(s, alpha, beta,output+" ")
-		//fmt.Printf("MIN :Go to tile %d and got heuristic %d\n",tile,currUtility)
 		s.UndoMove(0,row,col)
 
 		if currUtility < bestUtility {
@@ -64,7 +57,6 @@ func moveMin(s *state.State, alpha int, beta int, output string) (int, int) {
 		}
 
 		if alpha >= beta {
-		//	fmt.Printf("%scutting off, Alpha %d, Beta %d\n",output,alpha,beta)
 			break
 		}
 	}
@@ -89,7 +81,7 @@ func playGame(playerNumber int) {
 			fmt.Println("AI's turn")
 			heur, move := findMoveFunc(game, commons.MinInt, commons.MaxInt, "")
 			y, x = commons.IndexToPosition(move)
-			fmt.Printf("The AI moved on position (%d,%d) with heuristic %d\n", y, x, heur)
+			fmt.Printf("The AI moved on position (%d,%d)\n", y, x, heur)
 			mark = (playerNumber+1)%2
 		}
 		game.PlayMove(mark, y, x)
