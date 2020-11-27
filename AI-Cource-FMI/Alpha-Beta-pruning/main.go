@@ -7,8 +7,10 @@ import (
 )
 
 func moveMax(s *state.State, alpha int, beta int) (int, int) {
-	if s.IsTerminal() {
-		return s.Utility(), -1
+	if s.HasWinner(){
+		return -(s.Utility()+1), -1
+	} else if s.IsTerminal() {
+		return 0,-1
 	}
 
 	bestUtility := commons.MinInt
@@ -34,8 +36,11 @@ func moveMax(s *state.State, alpha int, beta int) (int, int) {
 }
 
 func moveMin(s *state.State, alpha int, beta int) (int, int) {
+	if s.HasWinner(){
+		return s.Utility()+1, -1
+	}
 	if s.IsTerminal() {
-		return s.Utility(), -1
+		return 0, -1
 	}
 
 	bestUtility := commons.MaxInt
