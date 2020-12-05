@@ -3,6 +3,7 @@
 #include <random>
 #include <chrono>
 #include <algorithm>
+#include <cfloat> 
 
 std::mt19937_64 rng;
 std::vector<std::pair<int, int>> cities;
@@ -16,8 +17,8 @@ const double insertionMutProb = 1.0;
 const double reverseMutProb = 0.6;
 const double generateRandomProb = 0.2;
 
-const int constraintsX[2]{ 0,1000 };
-const int constraintsY[2]{ 0,1000 };
+const int constraintsX[2]{ 0,10000 };
+const int constraintsY[2]{ 0,10000 };
 
 inline const std::pair<int*, int*> cyclicCrossover(const int* const parentA, const int* const parentB) {
 	int* positionsA = new int[cities.size() + 1];
@@ -80,7 +81,7 @@ inline const std::pair<int*, int*> onePointCrossover(const int* const parentA, c
 		geneReceivedChild2[parentB[i]] = true;
 	}
 
-	int childIter = checkpoint + 1;
+	int childIter = checkpoint+1;
 	for (int i = 0; i < cities.size(); i++) {
 		if (geneReceivedChild1[parentB[i]]) {
 			continue;
@@ -90,7 +91,7 @@ inline const std::pair<int*, int*> onePointCrossover(const int* const parentA, c
 		geneReceivedChild1[parentB[i]] = true;
 	}
 
-	childIter = checkpoint + 1;
+	childIter = checkpoint+1;
 	for (int i = 0; i < cities.size(); i++) {
 		if (geneReceivedChild2[parentA[i]]) {
 			continue;
@@ -102,7 +103,7 @@ inline const std::pair<int*, int*> onePointCrossover(const int* const parentA, c
 	delete[] geneReceivedChild1;
 	delete[] geneReceivedChild2;
 	return std::pair<int*, int*>(firstChild, secondChild);
-
+	
 }
 
 inline const std::pair<int*, int*> twoPointCrossover(const int* const parentA, const int* const parentB) {
@@ -135,12 +136,12 @@ inline const std::pair<int*, int*> twoPointCrossover(const int* const parentA, c
 		childOneIter = 0;
 		childTwoIter = 0;
 	}
-
+	
 	int parentIter1 = childTwoIter;
 	int parentIter2 = childOneIter;
 
 
-	do {
+	do{
 		if (childOneIter == cities.size()) {
 			childOneIter = 0;
 		}
@@ -301,7 +302,7 @@ inline const std::vector<int> roundRobinTournament(const std::vector<int*>& glad
 
 	std::uniform_int_distribution<int> distr(0, gladiators.size() - 1);
 	std::vector<int> tournamentCompetitors(tournamentSize);
-
+	
 	for (int i = 0; i < tournamentsNumbers; i++) {
 		for (int j = 0; j < tournamentSize; j++) {
 			int competitor = distr(rng);
@@ -379,33 +380,6 @@ inline void updatePopulation(const std::vector<int*>& newGeneration) {
 	}
 }
 
-/*
-inline void updatePopulation(const std::vector<int*> newGeneration) {
-	std::vector<int*> mergedPopulation(population.size() + newGeneration.size());
-	double worstFitness = 0;
-	int* bestIndividual = nullptr;
-	double bestFitness = DBL_MAX;
-	for (int i = 0; i < mergedPopulation.size(); i++) {
-		if (i < population.size()) {
-			mergedPopulation[i] = population[i];
-		}
-		else
-		{
-			mergedPopulation[i] = newGeneration[i - population.size()];
-		}
-	}
-	//std::cout << "Sorting" << std::endl;
-	std::sort(mergedPopulation.begin(), mergedPopulation.end(), [](const int* const l, const int* const r) {
-		return calculateFitness(l) > calculateFitness(r); });
-	for (int i = 0;  i < population.size(); i++) {
-		population[i] = mergedPopulation[i+mergedPopulation.size()-population.size()];
-		fitness[i] = calculateFitness(population[i]);
-	}
-	for (int i = 0; i < newGeneration.size(); i++) {
-		delete[] mergedPopulation[i];
-	}
-}
-*/
 inline void showPopulationStatistics() {
 	double mean = 0;
 	double bestFitness = DBL_MAX;
@@ -435,7 +409,7 @@ inline const std::vector<int*> getNewGeneration(const std::vector<int>& winners)
 		std::pair<int*, int*> children;
 		std::uniform_real_distribution<double> pCrossover(0, 1);
 		if (pCrossover(rng) <= 0.4) {
-			children = onePointCrossover(population[firstParent], population[secondParent]);
+			 children = onePointCrossover(population[firstParent], population[secondParent]);
 		}
 		else {
 			children = twoPointCrossover(population[firstParent], population[secondParent]);
@@ -454,16 +428,14 @@ inline const std::vector<int*> getNewGeneration(const std::vector<int>& winners)
 
 void initCities() {
 	int cityNumbers = 0;
+	std::cout<<"Cities :";
 	std::cin >> cityNumbers;
 	cities.resize(cityNumbers);
 	distances.resize(cities.size());
 
-	int x, y;
 	for (int i = 0; i < cities.size(); i++) {
-		std::cin >> x;
-		cities[i].first = x; //rng() % constraintsX[1];
-		std::cin >> y;
-		cities[i].second = y; //rng() % constraintsY[1];
+		cities[i].first = rng() % constraintsX[1];
+		cities[i].second = rng() % constraintsY[1];
 		distances[i].resize(cities.size());
 	}
 
@@ -480,8 +452,8 @@ void initPopulation() {
 	std::cout << "Choose population number :";
 	std::cin >> populationSize;
 
-	//Set children to be 20% of the population
-	newGenerationSize = 0.3 * populationSize;
+	//Set children to be 50% of the population
+	newGenerationSize = 0.5 * populationSize;
 
 	int* arr = new int[cities.size()];
 	for (int i = 0; i < cities.size(); i++) {
@@ -530,8 +502,8 @@ int main() {
 		//Survival step
 		updatePopulation(newGeneration);
 
-		if (currGeneration == 10 || currGeneration % 300 == 0)
-			showPopulationStatistics();
+		if(currGeneration==10 || currGeneration % 300 == 0)
+		showPopulationStatistics();
 
 		if (diffThreshold > fitness[0] - fitness[fitness.size() - 1]) {
 			stagnationCounter++;
@@ -551,3 +523,4 @@ int main() {
 
 	return 0;
 }
+
