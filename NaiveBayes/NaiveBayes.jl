@@ -7,7 +7,7 @@ using Distributions
 using Random
 using InvertedIndices
 
-function laplaceSmoothing(table::Array{Array{Float64,1},1}; α = 0)
+function laplaceSmoothing(table::Array{Array{Float64,1},1}; α = 0.1)
     for i = 1:size(table, 1)
         all = 0
         for j = 1:size(table[i], 1)
@@ -22,11 +22,7 @@ function laplaceSmoothing(table::Array{Array{Float64,1},1}; α = 0)
 end
 
 #Create real condifitonal Tables
-function getClassCountTables(
-    df::DataFrame,
-    class::Int64,
-    domains::Array{Array{Int64,1},1},
-)
+function getClassCountTables(df::DataFrame, class::Int64, domains::Array{Array{Int64,1},1})
     condTable = [[0.0 for j = 1:size(domains[i], 1)] for i = 2:size(df, 2)]
     classCount::Float64 = 0.0
 
@@ -35,6 +31,7 @@ function getClassCountTables(
             continue
         end
         classCount += 1
+
         for j = 1:size(condTable, 1)
             for k = 1:size(condTable[j], 1)
                 #j+1 because we start from the second column -> the first feature column
@@ -49,8 +46,8 @@ end
 
 
 function getProbabilityTables(df::DataFrame, domains::Array{Array{Int64,1},1})
-    condPropTables = Array{Array{Float64,1},1}[]
-    classPropTable = Float64[]
+    condPropTables = Array{Array{Float64,1},1}[] # P(feature | class)
+    classPropTable = Float64[] # P(class)
 
     for i = 1:size(domains[1], 1)
         classCount, condTables = getClassCountTables(df, i, domains)
@@ -63,7 +60,6 @@ end
 
 function pickValue(valueProbabilities::Array{Float64,1}, domain::Array{Int64,1})
     result = rand(Multinomial(1, valueProbabilities))
-
     winner = -1
     for i = 1:size(result, 1)
         if result[i] == 1
@@ -132,18 +128,19 @@ function classify(entity::DataFrameRow,classPropTable::Array{Float64,1},condProp
             bestClassIdx = i
         end
     end
-
     return bestClassIdx
 end
 
 function validateModel(validateSet::DataFrame,classPropTable::Array{Float64,1},condPropTables::Array{Array{Array{Float64,1},1},1})
     success::Int64 = 0
     for i = 1:size(validateSet, 1)
+        println(validateSet[i,:])
         classIdx =
             classify(validateSet[i, Not(1)], classPropTable, condPropTables)
         if classIdx == validateSet[i, 1]
             success += 1
         end
+        @printf("Classified as %d\n",classIdx)
     end
     return (1.0 * success) / size(validateSet, 1)
 end
@@ -196,7 +193,6 @@ df = CSV.read("/Users/i515142/Downloads/house-votes-84.data")
 toDelete = []
 for i = 1:size(df)[1]
     unknowns = 0
-
     for column in names(df)
         if df[i, column] == "?"
             unknowns = unknowns + 1
@@ -220,4 +216,4 @@ df, domains = mapCategorialToIndex(df, domains)
 df = fillMissingValues(df, domains)
 df = df[shuffle(1:size(df, 1)), :];
 
-naiveBayesClassification(df, domains)
+@time naiveBayesClassification(df, domains)
