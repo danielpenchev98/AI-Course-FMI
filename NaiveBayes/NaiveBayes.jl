@@ -7,7 +7,7 @@ using Distributions
 using Random
 using InvertedIndices
 
-function laplaceSmoothing(table; α = 1)
+function laplaceSmoothing(table::Array{Array{Float64,1},1}; α = 0)
     for i = 1:size(table, 1)
         all = 0
         for j = 1:size(table[i], 1)
@@ -22,9 +22,13 @@ function laplaceSmoothing(table; α = 1)
 end
 
 #Create real condifitonal Tables
-function getClassCountTables(df::DataFrame, class, domains)
+function getClassCountTables(
+    df::DataFrame,
+    class::Int64,
+    domains::Array{Array{Int64,1},1},
+)
     condTable = [[0.0 for j = 1:size(domains[i], 1)] for i = 2:size(df, 2)]
-    classCount = 0.0
+    classCount::Float64 = 0.0
 
     for i = 1:size(df, 1)
         if df[i, 1] != class
@@ -33,6 +37,7 @@ function getClassCountTables(df::DataFrame, class, domains)
         classCount += 1
         for j = 1:size(condTable, 1)
             for k = 1:size(condTable[j], 1)
+                #j+1 because we start from the second column -> the first feature column
                 if df[i, j+1] == domains[j+1][k]
                     condTable[j][k] += 1.0
                 end
@@ -43,9 +48,9 @@ function getClassCountTables(df::DataFrame, class, domains)
 end
 
 
-function getProbabilityTables(df::DataFrame, domains)
-    condPropTables = []
-    classPropTable = []
+function getProbabilityTables(df::DataFrame, domains::Array{Array{Int64,1},1})
+    condPropTables = Array{Array{Float64,1},1}[]
+    classPropTable = Float64[]
 
     for i = 1:size(domains[1], 1)
         classCount, condTables = getClassCountTables(df, i, domains)
@@ -53,11 +58,12 @@ function getProbabilityTables(df::DataFrame, domains)
         push!(condPropTables, laplaceSmoothing(condTables))
     end
 
-    return laplaceSmoothing([classPropTable])[1], condPropTables
+    return laplaceSmoothing(Array{Float64,1}[classPropTable])[1], condPropTables
 end
 
-function pickValue(votes, domain)
-    result = rand(Multinomial(1, votes))
+function pickValue(valueProbabilities::Array{Float64,1}, domain::Array{Int64,1})
+    result = rand(Multinomial(1, valueProbabilities))
+
     winner = -1
     for i = 1:size(result, 1)
         if result[i] == 1
@@ -69,22 +75,18 @@ function pickValue(votes, domain)
     return domain[winner]
 end
 
-function fillMissingValues(df::DataFrame, domains)
-    subsets = []
+function fillMissingValues(df::DataFrame, domains::Array{Array{Int64,1},1})
+    subsets = DataFrame[]
     for c = 1:size(domains[1], 1)
-        subset = @where(df, :x1 .== domains[1][c])
+        subset::DataFrame = @where(df, :x1 .== domains[1][c])
 
-        classCount, votes = getClassCountTables(subset, c, domains)
-        for i = 1:size(votes)[1]
-            all = 0
-            for j = 1:size(domains[i], 1)
-                all += votes[i][j]
-            end
-
+        classCount, condTables = getClassCountTables(subset, c, domains)
+        for i = 1:size(condTables)[1]
+            all::Float64 = foldr(+, condTables[i]; init = 0.0)
             ### all cannot be zero, because all columns with only missing df were removed
 
-            for j = 1:size(votes[i], 1)
-                votes[i][j] /= all
+            for j = 1:size(condTables[i], 1)
+                condTables[i][j] /= all
             end
         end
 
@@ -92,7 +94,7 @@ function fillMissingValues(df::DataFrame, domains)
             for j = 2:size(subset, 2)
                 #0 is the missing value, the min value from the domain is 1
                 if subset[i, j] < domains[j][1]
-                    subset[i, j] = pickValue(votes[j-1], domains[j])
+                    subset[i, j] = pickValue(condTables[j-1], domains[j])
                 end
             end
         end
@@ -107,23 +109,23 @@ function fillMissingValues(df::DataFrame, domains)
 end
 
 #TODO better name
-function splitRandomlyDataset(df::DataFrame, n::Int64)
-    df_size = size(df, 1)
-    seed = rand(UInt64)
+function getRandomPermOfSamples(df::DataFrame, n::Int64)
+    df_size::Int64 = size(df, 1)
+    seed::UInt64 = rand(UInt64)
     randvec = randperm!(MersenneTwister(seed), Vector{Int64}(undef, df_size))
     return randvec, convert(UInt64, round(df_size / n))
 end
 
-function classify(entity::DataFrameRow, classPropTable, condPropTables)
-    bestVal = -Inf
-    bestClassIdx = 1
+function classify(entity::DataFrameRow,classPropTable::Array{Float64,1},condPropTables::Array{Array{Array{Float64,1},1},1})
+    bestVal::Float64 = -Inf
+    bestClassIdx::Int64 = 1
 
     for i = 1:size(classPropTable, 1)
-        result = log(classPropTable[i])
-        temp = 0
-        for j = 1:size(entity, 1)
-            result += log(condPropTables[i][j][entity[j]])
-        end
+        result::Float64 = foldr(
+            (idx, oldVal) -> oldVal + log(condPropTables[i][idx][entity[idx]]),
+            1:size(entity, 1),
+            init = log(classPropTable[i]),
+        )
 
         if bestVal < result || bestVal == -Inf
             bestVal = result
@@ -134,8 +136,8 @@ function classify(entity::DataFrameRow, classPropTable, condPropTables)
     return bestClassIdx
 end
 
-function validateModel(validateSet::DataFrame, classPropTable, condPropTables)
-    success = 0
+function validateModel(validateSet::DataFrame,classPropTable::Array{Float64,1},condPropTables::Array{Array{Array{Float64,1},1},1})
+    success::Int64 = 0
     for i = 1:size(validateSet, 1)
         classIdx =
             classify(validateSet[i, Not(1)], classPropTable, condPropTables)
@@ -143,11 +145,11 @@ function validateModel(validateSet::DataFrame, classPropTable, condPropTables)
             success += 1
         end
     end
-    return success / size(validateSet, 1)
+    return (1.0 * success) / size(validateSet, 1)
 end
 
-function mapColumnsToIndex(df, domains)
-    newDf = DataFrame([Int8[] for i = 1:size(df, 2)])
+function mapCategorialToIndex(df::DataFrame, domains::Array{Array{String,1},1}) #domains::Array{Array{Int8,1},1})
+    newDf::DataFrame = DataFrame([Int8[] for i = 1:size(df, 2)])
     for i = 1:size(df, 1)
         push!(newDf, [0 for j = 1:size(df, 2)])
         for j = 1:size(df, 2)
@@ -160,7 +162,7 @@ function mapColumnsToIndex(df, domains)
         end
     end
 
-    newDomains = []
+    newDomains = Array{Int64,1}[]
     for i = 1:size(df, 2)
         push!(newDomains, [j for j = 1:size(domains[i], 1)])
     end
@@ -168,15 +170,17 @@ function mapColumnsToIndex(df, domains)
 end
 
 #TODO Stratified K-fold
-function naiveBayesClassification(df::DataFrame, domains; k = 10)
-    modifiedDf = mapColumnsToIndex(df, domains)
-    kFoldPlan, setSize = splitRandomlyDataset(df, k)
-    meanAccuracy = 0
+function naiveBayesClassification(df::DataFrame, domains::Array{Array{Int64,1},1}; k = 10)
+    kFoldPlan::Array{Int64,1}, sampleSize::Int64 = getRandomPermOfSamples(df, 10)
+    meanAccuracy::Float64 = 0
+
     for i = 1:k
-        testDataSetIndeces = kFoldPlan[Not((i-1)*setSize+1:i*setSize)]
+        testDataSetIndeces = kFoldPlan[Not((i-1)*sampleSize+1:i*sampleSize)]
+
         classPropTable, condProbTables =
             getProbabilityTables(df[testDataSetIndeces, :], domains)
-        accuracy = validateModel(
+
+        accuracy::Float64 = validateModel(
             df[Not(testDataSetIndeces), :],
             classPropTable,
             condProbTables,
@@ -184,16 +188,15 @@ function naiveBayesClassification(df::DataFrame, domains; k = 10)
         @printf("Training %d with accurancy %.6f\n", i, accuracy)
         meanAccuracy += accuracy / k
     end
-
     @printf("Mean accurancy %.6f\n", meanAccuracy)
 end
-
 
 df = CSV.read("/Users/i515142/Downloads/house-votes-84.data")
 
 toDelete = []
 for i = 1:size(df)[1]
     unknowns = 0
+
     for column in names(df)
         if df[i, column] == "?"
             unknowns = unknowns + 1
@@ -213,7 +216,8 @@ for i = 2:size(df, 2)
     push!(domains, ["y", "n"])
 end
 
-df, domains = mapColumnsToIndex(df, domains)
+df, domains = mapCategorialToIndex(df, domains)
 df = fillMissingValues(df, domains)
 df = df[shuffle(1:size(df, 1)), :];
+
 naiveBayesClassification(df, domains)
