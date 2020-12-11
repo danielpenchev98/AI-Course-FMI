@@ -59,6 +59,7 @@ function fillMissingValues(df::DataFrame, domains::Array{Array{Int64,1},1}, miss
     end
 
     while size(subsets, 1) > 1
+
         append!(subsets[1], pop!(subsets))
     end
 
@@ -170,7 +171,7 @@ function naiveBayesClassification(df::DataFrame, domains::Array{Array{Int64,1},1
     @printf("Mean accurancy %.6f\n", meanAccuracy)
 end
 
-df = CSV.read("/Users/i515142/Downloads/house-votes-84.data",header=false)
+df = CSV.read("./data/house-votes-84.data",header=false)
 
 const missingValuesThreshold = 1.0 * size(df, 2) / 2
 const missingValueSign = "?"
