@@ -7,120 +7,103 @@ using Distributions
 using Random
 using InvertedIndices
 
-mutable struct ID3
+mutable struct ID3Node
     feature::Int64
-    children::Array{ID3,1}
+    children::Array{ID3Node,1}
     dominatingClass::String
     isLeaf::Bool
 end
 
-#we assume that the DataFrame arg is already filtered suck that it already uses all previously selected features
-#length(foldr(((col,val),res)-> res .& df[:,col] .== val,usedFeatures))
-
-#TODO use laplace smoothing
-
 function entropyOneAttribute(df::DataFrame,classDomain::Array{String,1}; α=0.005)
     allCounts = nrow(df)
-    #propbabilities = map(class -> (count(df[:,1] .== class) + α) /(allCounts + α * length(classDomain[1])) ,classDomain)
-    propbabilities = map(class -> count(df[:,1] .== class)/allCounts ,classDomain)
-    return - foldr((prob, res) -> prob == 0.0 ? res : res + prob * log2(prob) ,propbabilities,init=0.0)
+    propbabilities = map(class -> (count(df[:,1] .== class) + α) /(allCounts + α * length(classDomain[1])) ,classDomain)
+    return - foldr((prob, res) -> res + prob * log2(prob) ,propbabilities,init=0.0)
 end
 
 function entropyTwoAttributes(df::DataFrame,feature::Int64,featureDomain::Array{String,1},classDomain::Array{String,1}; α = 0.005)
     allCounts, ∑ = nrow(df), 0.0
     for featureValue in featureDomain
         entropy = entropyOneAttribute( df[df[:,feature] .== featureValue,:],classDomain)
-        #propOfFeature = (count(df[:,feature] .== featureValue) + α) / (allCounts + α * length(unique(df[:,feature])))
-        propOfFeature = count(df[:,feature] .== featureValue)/ allCounts
-        @printf("Feature %d with value %s has entropy %.6f and prob %.6f\n",feature,featureValue,entropy,propOfFeature)
+        propOfFeature = (count(df[:,feature] .== featureValue) + α) / (allCounts + α * length(featureDomain))
         ∑ += entropy * propOfFeature
     end
     return ∑
 end
 
-function calcGain(currentEntropy,parentEntropy)
-    return parentEntropy - currentEntropy
-end
-
-function getDominatingClass(df::DataFrame, classDomain::Array{String,1}; parentDominatingClass = "Sentinel" )
+function getDominatingClass(df::DataFrame, classDomain::Array{String,1}, parentDominatingClass)
     winners = []
     dominatingCount = 0
     for class in classDomain
         cnt = count(df[:,1] .== class)
         if dominatingCount < cnt
-            dominatingCount = cnt
-            winners = [class]
+            dominatingCount, winners = cnt, [class]
         elseif dominatingCount == cnt
             push!(winners,class)
         end
     end
 
     if length(winners) == 1
-        @printf("Winner is %s\n",winners[1])
-        @printf("Winner is %s\n",winners[1])
         return winners[1]
-    elseif parentDominatingClass != "Sentinel" && parentDominatingClass in winner
-        @printf("Winner is %s\n",parentDominatingClass)
-        @printf("Winner is %s\n",parentDominatingClass)
+    elseif parentDominatingClass != "Sentinel" && parentDominatingClass in winners
         return parentDominatingClass
     end
-
 
     return winners[(rand(Int) % length(winners))+1]
 end
 
-function getFeatureWithBestGain(df::DataFrame, domains::Array{Array{String,1},1},currEntropy::Float64)
+function calcGain(df::DataFrame,featureIdx::Int64,domains::Array{Array{String,1},1},parentEntropy::Float64)
+    childEntropy = entropyTwoAttributes(df,featureIdx,domains[featureIdx],domains[1])
+    return parentEntropy - childEntropy
+end
+
+function getFeatureWithBestGain(df::DataFrame, domains::Array{Array{String,1},1},remainingFeatures::Array{Int64,1})
     winner, maxGain = 2, -Inf
-    println(size(domains,1))
-    println(domains)
-    for i in 2:size(domains,1)
-        gain = calcGain(entropyTwoAttributes(df,i,domains[i],domains[1]),currEntropy)
-        if maxGain < gain
-            maxGain = gain
-            winner = i
+    currEntropy = entropyOneAttribute(df,domains[1])
+    for i in remainingFeatures
+        currGain = calcGain(df,i,domains,currEntropy)
+        if maxGain < currGain
+            winner, maxGain = i, currGain
         end
     end
     return winner
 end
 
-function createID3(df::DataFrame,domains::Array{Array{String,1},1};setThreshold=5)
-    println("------------")
-    println(domains)
-    println(df)
-    dominatingClass = getDominatingClass(df,domains[1])
-    currEntropy = entropyOneAttribute(df,domains[1])
+function createID3Node(df::DataFrame,domains::Array{Array{String,1},1};setThreshold=14)
+    if nrow(df) == 0
+        throw(ArgumentError("The dataset is empty"))
+    elseif size(df,2) != size(domains,1)
+        throw(ArgumentError("Number of features doesnt match the number of the domains"))
+    end
 
-    winner = getFeatureWithBestGain(df,domains,currEntropy)
-    root = ID3(winner,ID3[],dominatingClass,false)
+    remainingFeatures = [i for i in 2:size(df,2)]
+    return createID3NodeRecursive(df,domains,remainingFeatures,setThreshold,"Sentinel")
+end
 
+function isHomogenous(df::DataFrame)
+    return length(unique(df[:,1])) == 1
+end
+
+function createID3NodeRecursive(df::DataFrame,domains::Array{Array{String,1},1}, remainingFeatures::Array{Int64,1}, setThreshold::Int64, parentDominatingClass::String)
+    if nrow(df) == 0
+        return ID3Node(-1,ID3Node[],parentDominatingClass,true)
+    end
+
+    dominatingClass = getDominatingClass(df,domains[1],parentDominatingClass)
+
+    if nrow(df) <= setThreshold || length(remainingFeatures) == 0 || isHomogenous(df)
+        return ID3Node(-1,ID3Node[],dominatingClass,true)
+    end
+
+    winner = getFeatureWithBestGain(df,domains,remainingFeatures)
+    remainingFeatures = filter(e-> e ≠ winner,remainingFeatures)
+
+    children = ID3Node[]
     for featureVal in domains[winner]
         filteredSet = df[df[:,winner] .== featureVal,:]
-        child = createID3Recursive(filteredSet,domains[Not(winner)],setThreshold,dominatingClass)
-        push!(root.children, child)
+        child = createID3NodeRecursive(filteredSet,domains,remainingFeatures,setThreshold,dominatingClass)
+        push!(children, child)
     end
-    return root
-end
-
-function isHomogenous(currEntopy::Float64; ϵ=0.03)
-    return abs(currEntopy - 1.0) <= ϵ || currEntopy <= ϵ
-end
-
-function createID3Recursive(df::DataFrame,domains::Array{Array{String,1},1},setThreshold, parentDominatingClass::String)
-    dominatingClass = getDominatingClass(df,domains[1],parentDominatingClass = parentDominatingClass)
-    currEntropy =  entropyOneAttribute(df,domains[1])
-    if nrow(df) <= setThreshold || length(domains) == 0 || isHomogenous(currEntropy)
-        return ID3(-1,ID3[],dominatingClass,true)
-    end
-
-    winner = getFeatureWithBestGain(df,domains,currEntropy)
-    root = ID3(winner,ID3[])
-
-    for featureVal in domains[winner]
-        filteredSet = df[df[:,winner] .== featureVal]
-        child = createID3Recursive(filteredSet,domains[Not(winner)],setThreshold,dominatingClass)
-        push!(root.children, child)
-    end
-    return root
+    return ID3Node(winner,children,dominatingClass,false)
 end
 
 function pickValue(valueProbabilities::Array{Float64,1}, domain::Any)
@@ -130,56 +113,87 @@ end
 
 function fillValues!(df::DataFrame, domains::Array{Array{String,1},1})
     for col in 1:ncol(df)
-        distribution = map(val -> count(df[:,col] .== val), domains[col])
-        probDistribution = 1.0 * distribution ./ sum(distribution)
+        cnts = map(val -> count(df[:,col] .== val), domains[col])
+        distribution = 1.0 * cnts ./ sum(cnts)
         missingValueRows = foldr((row, res) -> df[row,col] == "?" ? push!(res,row) : res, 1:nrow(df), init=[])
-
         for row in missingValueRows
-            df[row,col] = pickValue(probDistribution,domains[col])
+            df[row,col] = pickValue(distribution,domains[col])
         end
     end
 end
 
-#df = CSV.read("./data/breast-cancer.data",header=false)
+function classify(entity::DataFrameRow,tree::ID3Node, domains::Array{Array{String,1},1})
+    currNode = tree
+    while !currNode.isLeaf
+        entityFeatureVal = entity[currNode.feature-1] #entity has no class column, which is the first column
+        childIndx = findfirst(x -> x==entityFeatureVal, domains[currNode.feature])
+        currNode = currNode.children[childIndx]
+    end
+    return currNode.dominatingClass
+end
 
-#const missingValuesThreshold = 1.0 * size(df, 2) / 2
-#const missingValueSign = "?"
+function validateModel(validateSet::DataFrame,tree::ID3Node, domains::Array{Array{String,1},1})
+    success::Int64 = 0
+    for i = 1:size(validateSet, 1)
+        classIdx = classify(validateSet[i, Not(1)],tree,domains)
+        if classIdx == validateSet[i, 1]
+            success += 1
+        end
+    end
+    return (1.0 * success) / size(validateSet, 1)
+end
 
-#for i in 1:size(df,2)
-#    println(count(row -> df[row,i] == missingValueSign,1:size(df,1)))
-#end
+function stratifiedKFold(df::DataFrame,classDomain::Array{String,1}, folds::Int64)
+    indeces = [i for i in 1:size(df,1)]
+    indecesPerClass = map((class) -> filter(x->df[x,1]==class,indeces) ,classDomain)
+    distributions = map((classIndeces) -> size(classIndeces,1) / size(indeces,1) ,indecesPerClass)
 
-#or i in 1:size(df,1)
-#    cnt = count(col -> df[i,col] == missingValueSign,1:size(df,2))
-#    if cnt > 0
-#        @printf("Row index %d and missing values %d\n",i,cnt)
-#    end
-#end
+    plan = []
+    foldSize = convert(Int64, floor(size(df,1)/folds))
+    for i in 1:folds
+        for j in 1:size(classDomain,1)
+            chunkSize = convert(Int64 ,floor(distributions[j] * foldSize +  ((i+j)%2==0 ? 1 : 0)))
+            append!(plan,indecesPerClass[j][1:chunkSize])
+            deleteat!(indecesPerClass[j],1:chunkSize)
+        end
+    end
 
-#domains = [["no-recurrence-events", "recurrence-events"],
-#           ["10-19", "20-29", "30-39", "40-49", "50-59", "60-69", "70-79", "80-89", "90-99"],
-#           ["lt40", "ge40", "premeno"],
-#           ["0-4", "5-9", "10-14", "15-19", "20-24", "25-29", "30-34", "35-39", "40-44",
-#                         "45-49", "50-54", "55-59"],
-#           ["0-2", "3-5", "6-8", "9-11", "12-14", "15-17", "18-20", "21-23", "24-26",
-#                        "27-29", "30-32", "33-35", "36-39"],
-#           ["yes", "no"],
-#           ["1", "2", "3"],
-#           ["left", "right"],
-#           ["left-up", "left-low", "right-up", "right-low", "central"],
-#           ["yes", "no"]]
+    return plan, foldSize
+end
 
+function DecisionTreeClassification(df::DataFrame, domains::Array{Array{String,1},1}; kfold = 10, setMinPopulation = 14)
+    kFoldPlan::Array{Int64,1}, sampleSize::Int64 = stratifiedKFold(df,domains[1],kfold)
+    meanAccuracy::Float64 = 0
 
-df = CSV.read("golf.csv",header=false,type=String)
+    for i in 1:kfold
+        trainDataSetIndeces = kFoldPlan[Not((i-1)*sampleSize+1:i*sampleSize)]
+        tree = createID3Node(df[trainDataSetIndeces,:],domains, setThreshold = setMinPopulation)
 
-domains = [["Yes","No"],
-           ["Rainy","Overcast","Sunny"],
-           ["Hot","Mild","Cool"],
-           ["High","Normal"],
-           ["True","False"]]
+        accuracy::Float64 = validateModel( df[Not(trainDataSetIndeces),:],tree,domains)
+        meanAccuracy += accuracy / kfold
+    end
 
-permutecols!(df, [:Column5, :Column1,:Column2,:Column3,:Column4])
+    return meanAccuracy
+end
 
+ df = CSV.read("./data/breast-cancer.data",header=false,types=[String for i in 1:10])
 
-#entropyTwoAttributes(df,2,domains[2],domains[1])
-createID3(df,domains)
+const missingValuesThreshold = 1.0 * size(df, 2) / 2
+const missingValueSign = "?"
+
+domains = [unique(df[:,i]) for i in 1:ncol(df)]
+fillValues!(df,domains)
+
+bestPopulationThreshold = 1
+bestMeanAccuracy = 0.0
+
+for i in 10:18
+    df = df[shuffle(1:size(df, 1)), :];
+    meanAcc = DecisionTreeClassification(df,domains,setMinPopulation = i)
+    if bestMeanAccuracy < meanAcc
+        bestMeanAccuracy = meanAcc
+        bestPopulationThreshold = i
+    end
+end
+
+@printf("Mean accuracy %.6f with population threshold %d\n",bestMeanAccuracy,bestPopulationThreshold)
