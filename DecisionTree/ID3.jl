@@ -7,13 +7,14 @@ using Distributions
 using Random
 using InvertedIndices
 
-mutable struct ID3Node
+struct ID3Node
     feature::Int64
     children::Array{ID3Node,1}
     dominatingClass::String
     isLeaf::Bool
 end
 
+#TODO could only pass only the column with the classes
 function entropyOneAttribute(df::DataFrame,classDomain::Array{String,1}; α=0.005)
     allCounts = nrow(df)
     propbabilities = map(class -> (count(df[:,1] .== class) + α) /(allCounts + α * length(classDomain[1])) ,classDomain)
@@ -57,7 +58,7 @@ function calcGain(df::DataFrame,featureIdx::Int64,domains::Array{Array{String,1}
 end
 
 function getFeatureWithBestGain(df::DataFrame, domains::Array{Array{String,1},1},remainingFeatures::Array{Int64,1})
-    winner, maxGain = 2, -Inf
+    winner, maxGain = -Inf, -Inf
     currEntropy = entropyOneAttribute(df,domains[1])
     for i in remainingFeatures
         currGain = calcGain(df,i,domains,currEntropy)
@@ -111,11 +112,12 @@ function pickValue(valueProbabilities::Array{Float64,1}, domain::Any)
     return domain[findfirst(x -> x == 1, result)]
 end
 
+#TODO think of a true reason why the some of the demain values of this feature have 0% chance - maybe laplace smoothing + normalization
 function fillValues!(df::DataFrame, domains::Array{Array{String,1},1})
     for col in 1:ncol(df)
         cnts = map(val -> count(df[:,col] .== val), domains[col])
         distribution = 1.0 * cnts ./ sum(cnts)
-        missingValueRows = foldr((row, res) -> df[row,col] == "?" ? push!(res,row) : res, 1:nrow(df), init=[])
+        missingValueRows = foldr((row, res) -> ismissing(df[row,col]) ? push!(res,row) : res, 1:nrow(df), init=[])
         for row in missingValueRows
             df[row,col] = pickValue(distribution,domains[col])
         end
@@ -126,7 +128,10 @@ function classify(entity::DataFrameRow,tree::ID3Node, domains::Array{Array{Strin
     currNode = tree
     while !currNode.isLeaf
         entityFeatureVal = entity[currNode.feature-1] #entity has no class column, which is the first column
-        childIndx = findfirst(x -> x==entityFeatureVal, domains[currNode.feature])
+        childIndx = findfirst(x -> x == entityFeatureVal, domains[currNode.feature])
+        if isnothing(childIndx)
+            break
+        end
         currNode = currNode.children[childIndx]
     end
     return currNode.dominatingClass
@@ -176,18 +181,19 @@ function DecisionTreeClassification(df::DataFrame, domains::Array{Array{String,1
     return meanAccuracy
 end
 
- df = CSV.read("./data/breast-cancer.data",header=false,types=[String for i in 1:10])
+#=
+df = CSV.read("./data/breast-cancer.data",header=false,types=[String for i in 1:10])
 
 const missingValuesThreshold = 1.0 * size(df, 2) / 2
 const missingValueSign = "?"
 
-domains = [unique(df[:,i]) for i in 1:ncol(df)]
+domains = [unique(filter(x->x!=missingValueSign,df[:,i])) for i in 1:ncol(df)]
 fillValues!(df,domains)
 
 bestPopulationThreshold = 1
 bestMeanAccuracy = 0.0
 
-for i in 10:18
+for i in 1:20
     df = df[shuffle(1:size(df, 1)), :];
     meanAcc = DecisionTreeClassification(df,domains,setMinPopulation = i)
     if bestMeanAccuracy < meanAcc
@@ -197,3 +203,4 @@ for i in 10:18
 end
 
 @printf("Mean accuracy %.6f with population threshold %d\n",bestMeanAccuracy,bestPopulationThreshold)
+=#
