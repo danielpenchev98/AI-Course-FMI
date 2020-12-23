@@ -3,12 +3,12 @@ using Plots
 using Distributions
 using InvertedIndices
 using Printf
+using StatsBase
 
 struct Point
     x::Float64
     y::Float64
 end
-
 
 mutable struct Cluster
     centroid::Point
@@ -25,8 +25,29 @@ function euclidianDistance(a::Point, b::Point)
     return sqrt((a.x-b.x)^2 + (a.y - b.y)^2)
 end
 
+function generateCentroids(dataPoints::Array{Point,1}, clusterNum::Int64)
+    remainingPoints = [i for i in 1:length(dataPoints)]
+    distances = Float64[Inf for _ in 1:length(dataPoints)]
+    centroids = [dataPoints[sample(remainingPoints)]]
+
+    for i in 1:length(dataPoints)
+        distances[i] = min(euclidianDistance(centroids[1],dataPoints[i]) ^ 2,distances[i])
+    end
+
+    for i in 2:clusterNum
+        newCentroid = dataPoints[sample(remainingPoints,Weights(distances))]
+        for i in 1:length(dataPoints)
+            distances[i] = min(euclidianDistance(newCentroid,dataPoints[i]) ^ 2,distances[i])
+        end
+        push!(centroids,newCentroid)
+    end
+
+    return centroids
+end
+
 function createInitialClusters(dataPoints::Array{Point,1}, clusterNum::Int64)
-    centroids, clusters = sample(points,clusterNum,replace=false), Cluster[]
+    centroids, clusters = generateCentroids(dataPoints,clusterNum), Cluster[]
+
     for centroid in centroids
         push!(clusters,Cluster(centroid,Point[]))
     end
@@ -50,7 +71,7 @@ end
 
 function plotClusters(clusters::Array{Cluster,1},colors::Array{Symbol,1})
     gr()
-    myPlot = plot([],[],seriestype = :scatter, title = "K-Means")
+    myPlot = plot([],[],seriestype = :scatter, title = "K-Means", legend=false)
     for (cluster,col) in zip(clusters,colors)
         clusterPointsX = map(point->point.x,cluster.points)
         clusterPointsY = map(point->point.y,cluster.points)
@@ -139,18 +160,18 @@ for coord in eachrow(coords)
     push!(points,Point(1.0*coord[1],1.0*coord[2]))
 end
 
-colors = [:blue,:green,:red, :yellow,:black, :purple, :orange,:brown, :gray]
+colors = [:blue,:green,:red, :yellow,:black, :purple, :orange,:aqua, :gray]
 
 bestAllTimeClassification = Classification(Cluster[],Inf,Inf)
 for i in 2:9
     @printf("ClusterNumbers %d\n",i)
     @printf("ClusterNumbers %d\n",i)
-    tries=100
+    tries=5
     bestClassification = Classification(Cluster[],Inf,Inf)
     while tries > 0
         clusters = createInitialClusters(points,i)
         classJob = Classification(clusters,Inf,Inf)
-        numChanges, iter, maxIter = Inf, 0, 400
+        numChanges, iter, maxIter = Inf, 0, 100
 
         while numChanges > 0 ||  iter < maxIter
             numChanges = updateClusters!(classJob.clusters)
