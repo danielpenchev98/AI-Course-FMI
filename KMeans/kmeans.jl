@@ -5,16 +5,19 @@ using InvertedIndices
 using Printf
 using StatsBase
 
+#representation of 2D point
 struct Point
     x::Float64
     y::Float64
 end
 
+#structure representing a cluster
 mutable struct Cluster
     centroid::Point
     points::Array{Point,1}
 end
 
+#structure representing the classification job overall
 mutable struct Classification
     clusters::Array{Cluster,1}
     internalEval::Float64
@@ -25,6 +28,8 @@ function euclidianDistance(a::Point, b::Point)
     return sqrt((a.x-b.x)^2 + (a.y - b.y)^2)
 end
 
+#generate initial centroids with kmeans++ optimization
+#returns the position of the centroids
 function generateCentroids(dataPoints::Array{Point,1}, clusterNum::Int64)
     remainingPoints = [i for i in 1:length(dataPoints)]
     distances = Float64[Inf for _ in 1:length(dataPoints)]
@@ -45,6 +50,8 @@ function generateCentroids(dataPoints::Array{Point,1}, clusterNum::Int64)
     return centroids
 end
 
+#generates clusters
+#returns the clusters
 function createInitialClusters(dataPoints::Array{Point,1}, clusterNum::Int64)
     centroids = generateCentroids(dataPoints,clusterNum)
     clusters = map(c -> Cluster(c,Point[]),centroids)
@@ -59,7 +66,7 @@ function createInitialClusters(dataPoints::Array{Point,1}, clusterNum::Int64)
     return clusters
 end
 
-
+#plotting the classification results
 function plotClusters(clusters::Array{Cluster,1},colors::Array{Symbol,1})
     gr()
     myPlot = plot([],[],seriestype = :scatter, title = "K-Means", legend=false)
@@ -72,7 +79,8 @@ function plotClusters(clusters::Array{Cluster,1},colors::Array{Symbol,1})
     display(myPlot)
 end
 
-#Davies–Bouldin index
+#Davies–Bouldin index - used as a measurement for the best number of clusters
+#returns Davies–Bouldin index
 function calcInternalEval(clusters::Array{Cluster,1})
     avgDists = map(cl ->
         sum(p -> euclidianDistance(p,cl.centroid), cl.points)/length(cl.points),
@@ -87,15 +95,11 @@ function calcInternalEval(clusters::Array{Cluster,1})
     return internalEval / length(clusters)
 end
 
-#TODO to implement the external metric
-#function updateExternalEval!(clusterId::Int64,clusters::Array{Cluster,1})
-
-#end
-
+#calculate the position of the centroid in the cluster
 function updateCentroids!(clusters::Array{Cluster,1})
     for i in 1:length(clusters)
         if length(clusters[i].points) == 0
-            return
+            break
         end
         meanX = sum(point -> point.x, clusters[i].points) / length(clusters[i].points)
         meanY = sum(point -> point.y, clusters[i].points) / length(clusters[i].points)
@@ -103,6 +107,8 @@ function updateCentroids!(clusters::Array{Cluster,1})
     end
 end
 
+#updates the cluster -> position of centroids, points in each cluster
+#returns the number of swaps of points from one cluster to another
 function updateClusters!(clusters::Array{Cluster,1})
     updateCentroids!(clusters)
     points = []
