@@ -28,10 +28,10 @@ end
 function generateCentroids(dataPoints::Array{Point,1}, clusterNum::Int64)
     remainingPoints = [i for i in 1:length(dataPoints)]
     distances = Float64[Inf for _ in 1:length(dataPoints)]
-    centroids = [dataPoints[sample(remainingPoints)]]
 
+    centroids = [dataPoints[sample(remainingPoints)]]
     for i in 1:length(dataPoints)
-        distances[i] = min(euclidianDistance(centroids[1],dataPoints[i]) ^ 2,distances[i])
+        distances[i] = euclidianDistance(centroids[1],dataPoints[i]) ^ 2
     end
 
     for i in 2:clusterNum
@@ -46,25 +46,16 @@ function generateCentroids(dataPoints::Array{Point,1}, clusterNum::Int64)
 end
 
 function createInitialClusters(dataPoints::Array{Point,1}, clusterNum::Int64)
-    centroids, clusters = generateCentroids(dataPoints,clusterNum), Cluster[]
-
-    for centroid in centroids
-        push!(clusters,Cluster(centroid,Point[]))
-    end
+    centroids = generateCentroids(dataPoints,clusterNum)
+    clusters = map(c -> Cluster(c,Point[]),centroids)
 
     for point in dataPoints
-        bestCluster = Inf
-        bestDistance = Inf
-        for (id,cluster) in enumerate(clusters)
-            currDistance = euclidianDistance(point,cluster.centroid)
-            if bestDistance > currDistance
-                bestDistance = currDistance
-                bestCluster = id
-            end
-        end
-        push!(clusters[bestCluster].points,point)
-    end
+        winner = foldr((x,res) -> res == () || x[2] < res[2] ? x : res,
+              map(id -> (id,euclidianDistance(point,clusters[id].centroid)), 1:length(clusters)),
+              init = ())
 
+        push!(clusters[winner[1]].points,point)
+    end
     return clusters
 end
 
@@ -83,21 +74,16 @@ end
 
 #Davies–Bouldin index
 function calcInternalEval(clusters::Array{Cluster,1})
-    avgDistances = Float64[]
-    for cluster in clusters
-        avgDist, allPoints = 0.0, length(cluster.points)
-        for point in cluster.points
-            avgDist += euclidianDistance(point,cluster.centroid) / allPoints
-        end
-        push!(avgDistances,avgDist)
-    end
+    avgDists = map(cl ->
+        sum(p -> euclidianDistance(p,cl.centroid), cl.points)/length(cl.points),
+        clusters)
 
-    helper(clusterId,clusters,avgDistances) =
-        maximum(j -> j == clusterId ? 0 :
-                     (avgDistances[clusterId]+avgDistances[j]) /
-                     euclidianDistance(clusters[clusterId].centroid,clusters[j].centroid),
-                1:length(clusters))
-    internalEval = sum(clusterId -> helper(clusterId,clusters,avgDistances),1:length(clusters))
+    helper(id,cls,avgDists) =
+        maximum(j -> (avgDists[id]+avgDists[j]) /
+                     euclidianDistance(cls[id].centroid,cls[j].centroid),
+                [i for i in 1:length(cls) if i != id])
+
+    internalEval = sum(clId -> helper(clId,clusters,avgDists),1:length(clusters))
     return internalEval / length(clusters)
 end
 
@@ -130,25 +116,15 @@ function updateClusters!(clusters::Array{Cluster,1})
     changes = 0
     for (point,clusterId) in points
         bestDistance = euclidianDistance(point,clusters[clusterId].centroid)
-        bestCluster = clusterId
-        for i in 1:length(clusters)
-            if i == clusterId
-                continue
-            end
 
-            competitorDistance =  euclidianDistance(point,clusters[i].centroid)
-            if bestDistance > competitorDistance
-                bestCluster = i
-                bestDistance = competitorDistance
-            end
-        end
+        winner = foldr((x,res) -> res == () || x[2] < res[2] ? x : res,
+              map(id -> (id, euclidianDistance(point,clusters[id].centroid)), 1:length(clusters)),
+              init = ())
 
-        if bestCluster != clusterId
-            changes+=1
-        end
-
-        push!(clusters[bestCluster].points,point)
+        changes += winner[1] != clusterId ? 1 : 0
+        push!(clusters[winner[1]].points,point)
     end
+
     return changes
 end
 
@@ -160,11 +136,10 @@ for coord in eachrow(coords)
     push!(points,Point(1.0*coord[1],1.0*coord[2]))
 end
 
-colors = [:blue,:green,:red, :yellow,:black, :purple, :orange,:aqua, :gray]
+colors = [:violet,:lime,:crimson, :gold,:darkviolet, :deepskyblue, :orange,:aqua, :gray]
 
 bestAllTimeClassification = Classification(Cluster[],Inf,Inf)
 for i in 2:9
-    @printf("ClusterNumbers %d\n",i)
     @printf("ClusterNumbers %d\n",i)
     tries=5
     bestClassification = Classification(Cluster[],Inf,Inf)
