@@ -127,7 +127,7 @@ function updateClusters!(clusters::Array{Cluster,1})
               map(id -> (id, euclidianDistance(point,clusters[id].centroid)), 1:length(clusters)),
               init = ())
 
-        changes += winner[1] != clusterId ? 1 : 0
+        changes += (winner[1] != clusterId ? 1 : 0)
         push!(clusters[winner[1]].points,point)
     end
 
@@ -145,7 +145,7 @@ end
 colors = [:violet,:lime,:crimson, :gold,:darkviolet, :deepskyblue, :orange,:aqua, :gray]
 
 bestAllTimeClassification = Classification(Cluster[],Inf,Inf)
-for i in 4:4
+for i in 2:8
     @printf("ClusterNumbers %d\n",i)
     tries=5
     bestClassification = Classification(Cluster[],Inf,Inf)
@@ -154,27 +154,28 @@ for i in 4:4
         classJob = Classification(clusters,Inf,Inf)
         numChanges, iter, maxIter = Inf, 0, 100
 
-        while numChanges > 0 ||  iter < maxIter
+        while numChanges > 0 &&  iter < maxIter
             numChanges = updateClusters!(classJob.clusters)
             classJob.internalEval = calcInternalEval(classJob.clusters)
             iter+=1
         end
 
-#        if bestClassification.internalEval > classJob.internalEval
+        if bestClassification.internalEval > classJob.internalEval
             bestClassification = classJob
-#        end
+        end
         plotClusters(bestClassification.clusters,colors)
         tries-=1
     end
 
-    #@printf("Classification was with %d number of clusters and internal eval %.6f\n",
-    #    length(bestClassification.clusters),bestClassification.internalEval)
+    @printf("Classification was with %d number of clusters and internal eval %.6f\n",
+        length(bestClassification.clusters),bestClassification.internalEval)
 
-    #if bestAllTimeClassification.internalEval > bestClassification.internalEval
-        #bestAllTimeClassification = bestClassification
-    #end
+    if bestAllTimeClassification.internalEval > bestClassification.internalEval
+        bestAllTimeClassification = bestClassification
+    end
 
-    #plotClusters(bestClassification.clusters,colors)
+    plotClusters(bestClassification.clusters,colors)
 end
 
-##    length(bestAllTimeClassification.clusters),bestAllTimeClassification.internalEval)
+@printf("Best classification was with %d number of clusters and internal eval %.6f\n",
+    length(bestAllTimeClassification.clusters),bestAllTimeClassification.internalEval)
