@@ -135,7 +135,7 @@ function updateClusters!(clusters::Array{Cluster,1})
 end
 
 
-coords = readdlm("./data/unbalance/unbalance.txt", ' ', Int64, '\n')
+coords = readdlm("./data/normal/normal.txt", '\t', Float64, '\n')
 
 points = Point[]
 for coord in eachrow(coords)
@@ -145,7 +145,7 @@ end
 colors = [:violet,:lime,:crimson, :gold,:darkviolet, :deepskyblue, :orange,:aqua, :gray]
 
 bestAllTimeClassification = Classification(Cluster[],Inf,Inf)
-for i in 2:9
+for i in 4:4
     @printf("ClusterNumbers %d\n",i)
     tries=5
     bestClassification = Classification(Cluster[],Inf,Inf)
@@ -160,21 +160,21 @@ for i in 2:9
             iter+=1
         end
 
-        if bestClassification.internalEval > classJob.internalEval
+#        if bestClassification.internalEval > classJob.internalEval
             bestClassification = classJob
-        end
+#        end
+        plotClusters(bestClassification.clusters,colors)
         tries-=1
     end
 
-    @printf("Classification was with %d number of clusters and internal eval %.6f\n",
-        length(bestClassification.clusters),bestClassification.internalEval)
+    #@printf("Classification was with %d number of clusters and internal eval %.6f\n",
+    #    length(bestClassification.clusters),bestClassification.internalEval)
 
-    if bestAllTimeClassification.internalEval > bestClassification.internalEval
-        bestAllTimeClassification = bestClassification
-    end
+    #if bestAllTimeClassification.internalEval > bestClassification.internalEval
+        #bestAllTimeClassification = bestClassification
+    #end
 
-    plotClusters(bestClassification.clusters,colors)
+    #plotClusters(bestClassification.clusters,colors)
 end
 
-@printf("Best classification was with %d number of clusters and internal eval %.6f\n",
-    length(bestAllTimeClassification.clusters),bestAllTimeClassification.internalEval)
+##    length(bestAllTimeClassification.clusters),bestAllTimeClassification.internalEval)
