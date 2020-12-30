@@ -24,7 +24,8 @@ mutable struct Classification
     externalEval::Float64
 end
 
-function euclidianDistance(a::Point, b::Point)
+#Euclidian distance
+function dist(a::Point, b::Point)
     return sqrt((a.x-b.x)^2 + (a.y - b.y)^2)
 end
 
@@ -36,13 +37,13 @@ function generateCentroids(dataPoints::Array{Point,1}, clusterNum::Int64)
 
     centroids = [dataPoints[sample(remainingPoints)]]
     for i in 1:length(dataPoints)
-        distances[i] = euclidianDistance(centroids[1],dataPoints[i]) ^ 2
+        distances[i] = dist(centroids[1],dataPoints[i]) ^ 2
     end
 
     for i in 2:clusterNum
         newCentroid = dataPoints[sample(remainingPoints,Weights(distances))]
         for i in 1:length(dataPoints)
-            distances[i] = min(euclidianDistance(newCentroid,dataPoints[i]) ^ 2,distances[i])
+            distances[i] = min(dist(newCentroid,dataPoints[i]) ^ 2,distances[i])
         end
         push!(centroids,newCentroid)
     end
@@ -58,7 +59,7 @@ function createInitialClusters(dataPoints::Array{Point,1}, clusterNum::Int64)
 
     for point in dataPoints
         winner = foldr((x,res) -> res == () || x[2] < res[2] ? x : res,
-              map(id -> (id,euclidianDistance(point,clusters[id].centroid)), 1:length(clusters)),
+              map(id -> (id,dist(point,clusters[id].centroid)), 1:length(clusters)),
               init = ())
 
         push!(clusters[winner[1]].points,point)
@@ -73,7 +74,7 @@ function plotClusters(clusters::Array{Cluster,1},colors::Array{Symbol,1})
     for (cluster,col) in zip(clusters,colors)
         clusterPointsX = map(point->point.x,cluster.points)
         clusterPointsY = map(point->point.y,cluster.points)
-        plot!(myPlot,clusterPointsX,clusterPointsY,color=[col],seriestype = :scatter)
+        plot!(clusterPointsX,clusterPointsY,color=[col],seriestype = :scatter)
         plot!([cluster.centroid.x],[cluster.centroid.y],color=[col],shape=[:star5], markersize=10, seriestype = :scatter)
     end
     display(myPlot)
@@ -83,12 +84,12 @@ end
 #returns Davies–Bouldin index
 function calcInternalEval(clusters::Array{Cluster,1})
     avgDists = map(cl ->
-        sum(p -> euclidianDistance(p,cl.centroid), cl.points)/length(cl.points),
+        sum(p -> dist(p,cl.centroid), cl.points)/length(cl.points),
         clusters)
 
     helper(id,cls,avgDists) =
         maximum(j -> (avgDists[id]+avgDists[j]) /
-                     euclidianDistance(cls[id].centroid,cls[j].centroid),
+                     dist(cls[id].centroid,cls[j].centroid),
                 [i for i in 1:length(cls) if i != id])
 
     internalEval = sum(clId -> helper(clId,clusters,avgDists),1:length(clusters))
@@ -121,10 +122,9 @@ function updateClusters!(clusters::Array{Cluster,1})
 
     changes = 0
     for (point,clusterId) in points
-        bestDistance = euclidianDistance(point,clusters[clusterId].centroid)
-
+        #winner -> (clusterId, closest distance to the centroid)
         winner = foldr((x,res) -> res == () || x[2] < res[2] ? x : res,
-              map(id -> (id, euclidianDistance(point,clusters[id].centroid)), 1:length(clusters)),
+              map(id -> (id, dist(point,clusters[id].centroid)), 1:length(clusters)),
               init = ())
 
         changes += (winner[1] != clusterId ? 1 : 0)
@@ -135,7 +135,7 @@ function updateClusters!(clusters::Array{Cluster,1})
 end
 
 
-coords = readdlm("./data/normal/normal.txt", '\t', Float64, '\n')
+coords = readdlm("./data/unbalance/unbalance.txt", ' ', Int64, '\n')
 
 points = Point[]
 for coord in eachrow(coords)
@@ -163,7 +163,6 @@ for i in 2:8
         if bestClassification.internalEval > classJob.internalEval
             bestClassification = classJob
         end
-        plotClusters(bestClassification.clusters,colors)
         tries-=1
     end
 

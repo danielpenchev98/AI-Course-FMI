@@ -116,17 +116,17 @@ for coord in eachrow(coords)
     push!(points,Point(1.0*coord[1],1.0*coord[2]))
 end
 
-colors = [UInt8[	191, 255, 0],
+colors = [ UInt8[	0, 255, 255],
+          UInt8[	191, 255, 0],
           UInt8[	238, 130, 238],
           UInt8[	220, 20, 60],
           UInt8[	255, 215, 0],
           UInt8[	148, 0, 211],
           UInt8[	0, 191, 255],
           UInt8[    255, 165, 0],
-          UInt8[	0, 255, 255],
           UInt8[	128, 128, 128]]
 
-for i in 1:8
+for i in 2:2
     @printf("ClusterNumbers %d\n",i)
     tries=5
     while tries > 0
