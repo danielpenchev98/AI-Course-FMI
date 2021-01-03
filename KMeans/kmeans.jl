@@ -21,14 +21,16 @@ end
 mutable struct Classification
     clusters::Array{Cluster,1}
     internalEval::Float64
-    externalEval::Float64
 end
 
 #Euclidian distance
 function dist(a::Point, b::Point)
-    return sqrt((a.x-b.x)^2 + (a.y - b.y)^2)
+    return sqrt(squaredDist(a,b))
 end
 
+function squaredDist(a::Point, b::Point)
+    return (a.x-b.x)^2 + (a.y - b.y)^2
+end
 #generate initial centroids with kmeans++ optimization
 #returns the position of the centroids
 function generateCentroids(dataPoints::Array{Point,1}, clusterNum::Int64)
@@ -80,12 +82,14 @@ function plotClusters(clusters::Array{Cluster,1},colors::Array{Symbol,1})
     display(myPlot)
 end
 
+function calcStd(centroid,points)
+    return sqrt(sum(p->squaredDist(p,centroid),points)/length(points))
+end
+
 #Davies–Bouldin index - used as a measurement for the best number of clusters
 #returns Davies–Bouldin index
 function calcInternalEval(clusters::Array{Cluster,1})
-    avgDists = map(cl ->
-        sum(p -> dist(p,cl.centroid), cl.points)/length(cl.points),
-        clusters)
+    avgDists = map(cl -> calcStd(cl.centroid, cl.points), clusters)
 
     helper(id,cls,avgDists) =
         maximum(j -> (avgDists[id]+avgDists[j]) /
@@ -144,14 +148,14 @@ end
 
 colors = [:violet,:lime,:crimson, :gold,:darkviolet, :deepskyblue, :orange,:aqua, :gray]
 
-bestAllTimeClassification = Classification(Cluster[],Inf,Inf)
+bestAllTimeClassification = Classification(Cluster[],Inf)
 for i in 2:8
     @printf("ClusterNumbers %d\n",i)
     tries=5
-    bestClassification = Classification(Cluster[],Inf,Inf)
+    bestClassification = Classification(Cluster[],Inf)
     while tries > 0
         clusters = createInitialClusters(points,i)
-        classJob = Classification(clusters,Inf,Inf)
+        classJob = Classification(clusters,Inf)
         numChanges, iter, maxIter = Inf, 0, 100
 
         while numChanges > 0 &&  iter < maxIter
