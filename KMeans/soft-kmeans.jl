@@ -18,9 +18,13 @@ mutable struct Classification
     internalEval::Float64
 end
 
-#euclidian distance
+#Euclidian distance
 function dist(a::Point, b::Point)
-    return sqrt((a.x-b.x)^2 + (a.y - b.y)^2)
+    return sqrt(squaredDist(a,b))
+end
+
+function squaredDist(a::Point, b::Point)
+    return (a.x-b.x)^2 + (a.y - b.y)^2
 end
 
 #generate initial centroids with kmeans++ optimization
@@ -62,6 +66,25 @@ function updateMembershipProb!(class::Classification; β = 10)
         class.memProbTable[i] = class.memProbTable[i] / ∑ #normalization of the "vector"
     end
     return changes
+end
+
+function calcStd(centroid,points)
+    return sqrt(sum(p->squaredDist(p,centroid),points)/length(points))
+end
+
+
+#Soft Davies-Bouldin Index - used as a measurement for the best number of clusters
+function calcInternalEval(classJob::Classification)
+    avgDists = map(c -> calcStd(c,classJob.points),classJob.centroids)
+    avgMembership = map(cID-> sum(classJob.memProbTable[:][cID])/length(classJob.points),1:length(classJob.centroids))
+
+    helper(id,centroids,avgDists, avgMembership) =
+        maximum(j -> (avgDists[id]*avgMembership[id]+avgDists[j]*avgMembership[j]) /
+                     dist(centroids[id],centroids[j]),
+                [j for j in 1:length(centroids) if j != id])
+
+    internalEval = sum(clId -> helper(clId,classJob.centroids,avgDists,avgMembership),1:length(classJob.centroids))
+    return internalEval / length(classJob.centroids)
 end
 
 #generates clusters
@@ -126,9 +149,12 @@ colors = [ UInt8[	0, 255, 255],
           UInt8[    255, 165, 0],
           UInt8[	128, 128, 128]]
 
-for i in 2:2
+
+bestAllTimeClassification = Classification([],[],[],Inf)
+for i in 2:8
     @printf("ClusterNumbers %d\n",i)
     tries=5
+    bestClassification = Classification([],[],[],Inf)
     while tries > 0
         classJob = createInitialClassification(points,i)
         numChanges, iter, maxIter = Inf, 0, 100
@@ -136,11 +162,24 @@ for i in 2:2
         while numChanges != 0 &&  iter < maxIter
             updateCentroids!(classJob)
             numChanges = updateMembershipProb!(classJob)
+            classJob.internalEval = calcInternalEval(classJob)
             iter+=1
         end
         tries-=1
-        plotClassification(classJob,colors)
+        if bestClassification.internalEval > classJob.internalEval
+            bestClassification = classJob
+        end
     end
+
+    @printf("Classification was with %d number of clusters and internal eval %.6f\n",
+        length(bestClassification.centroids),bestClassification.internalEval)
+
+    if bestAllTimeClassification.internalEval > bestClassification.internalEval
+        bestAllTimeClassification = bestClassification
+    end
+
+    plotClassification(bestClassification,colors)
 end
 
-#TODO internal metric to implement
+@printf("Best classification was with %d number of clusters and internal eval %.6f\n",
+    length(bestAllTimeClassification.centroids),bestAllTimeClassification.internalEval)
