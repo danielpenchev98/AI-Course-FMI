@@ -57,11 +57,7 @@ function backpropagate!(neuralNetwork,input,output; α=0.5)
 
     for i in reverse(1:length(hiddenLayers))
         for j in 1:length(hiddenLayers[i])
-            println("--------------")
-            lol = map(child->child.Δ * child.inputWeights[j], hiddenLayers[i][j].children)
-            println(lol)
-            println("---------------")
-            temp = reduce(sum,lol)
+            temp = sum(map(child->child.Δ * child.inputWeights[j], hiddenLayers[i][j].children))
             hiddenLayers[i][j].Δ = sig_gradient(hiddenLayers[i][j].value) * temp
             for k in 1:length(hiddenLayers[i][j].parents)
                 hiddenLayers[i][j].inputWeights[k] += α * hiddenLayers[i][j].parents[k].value * hiddenLayers[i][j].Δ
@@ -93,7 +89,7 @@ end
 
 networkInput=[[0,0],[1,0],[0,1],[1,1]]
 networkOutput=[0,1,1,0]
-neuralNetwork=createNeuralNetwork([2,4,2,1])
+neuralNetwork=createNeuralNetwork([2,4,1])
 
 #=for i in 1:length(neuralNetwork)
     for j in 1:length(neuralNetwork[i])
@@ -102,9 +98,8 @@ neuralNetwork=createNeuralNetwork([2,4,2,1])
 end=#
 
 train!(neuralNetwork,networkInput,networkOutput)
-#=
+
 for tst in networkInput
     forwardPropagate!(neuralNetwork,tst)
-    @printf("Input %s for XOR gate has result %.6f\n",tst,last(neuralNetwork)[1].value)
+    @printf("Result %.6f\n",tst,last(neuralNetwork)[1].value)
 end
-=#
