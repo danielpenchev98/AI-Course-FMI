@@ -38,6 +38,20 @@ def pick_variable(candidates:List[int],domains:List[List[Color]]) -> int:
     
     return bestCandidate
 
+def least_constraining_value(valueOptions:List[Color],neighbours:List[int],domains:List[List[Color]], constraint :Callable[[Color,Color],bool]) -> Color:
+    bestValue = valueOptions[0]
+    maxCnt = 0;
+    for option in valueOptions:
+        currCnt = 0
+        for neighbour in neighbours:
+            currCnt += sum(1 for val in domains[neighbour] if constraint(option,val))
+        
+        if currCnt > maxCnt:
+            bestValue = option
+            maxCnt = currCnt
+    
+    return bestValue
+
 # finds a solution to the map colouring problem using backtracking 
 def mapColoringRec(graph:List[List[int]], domains:List[List[Color]], solution: List[Color]) -> bool:
     unassignedVariables = [i for i in range(0,len(solution)) if solution[i] == Color.DEFAULT]
