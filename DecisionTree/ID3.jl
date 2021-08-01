@@ -213,45 +213,51 @@ function DecisionTreeClassification(df::DataFrame, domains::Array{Array{String,1
     return meanAccuracy
 end
 
-function chiSquarePruning(root::ID3Node,df::DataFrame, domains::Array{Array{String,1},1}; threshold = 0.05)
-    currentDistribution = map(class -> count(df[:,1] .== class) ,domains[1]) # N(class A), N(class B) ...
+function calculateExpectedDistributions(parentDistribution::Array{Int64,1},childrenDistribution::Array{Array{Int64,1},1})::Array{Array{Float64,1},1}
+    expectedProbabilities = map(childDistribution -> 1.0 * sum(childDistribution) / nrow(df),childrenDistribution) # p(first children) = # of elements in subset / # of elements in the set
+    expectedDistributions = []
+    for probability in expectedProbabilities
+        expectedCount = map(distribution -> distribution * probability,parentDistribution)
+        push!(expectedDistributions,expectedCount)
+    end
+
+    return expectedDistributions
+end
+
+function isPrunable(parentDistribution::Array{Int64,1}, childrenDistributions::Array{Array{Int64,1},1}, hypothesisThreshold::Float64)::Bool
+    expectedDistributions = calculateExpectedDistributions(parentDistribution, childrenDistributions)
+
+    K = 0.0
+    for i in 1:length(childrenDistributions)
+        for j in 1:length(childrenDistributions[i])
+            K+= (childrenDistributions[i][j] - expectedDistributions[i][j])^2 / expectedDistributions[i][j]
+        end
+    end
+
+    numberOfClasses, numberOfChildren = length(parentDistribution), length(childrenDistributions)
+    degreeOfFreedom = (numberOfClasses - 1) * (numberOfChildren - 1)
+    pValue = ccdf(Chisq(degreeOfFreedom),K)
+
+    return pValue > hypothesisThreshold
+end
+
+function chiSquarePruning(root::ID3Node,df::DataFrame, domains::Array{Array{String,1},1}; threshold = 0.05)::Tuple{Array{Int64,1},Bool}
+    currentDistribution::Array{Int64,1} = map(class -> count(df[:,1] .== class) ,domains[1]) # N(class A), N(class B) ...
     if root.isLeaf
         return (currentDistribution,true)
     end
     
-    childrenDistribution = []
-    toPrune = true
+    childrenDistributions::Array{Array{Int64,1},1} = []
+    areChildrenLeafs = true
     for i in 1:length(root.children)
         featureVal = domains[root.feature][i]
         filteredSet = df[df[:,root.feature] .== featureVal,:] # Get subset of elements, whose value of the particular feature is ...
-        childDistribution, wasPrunned = chiSquarePruning(root.children[i],filteredSet,domains) # Recursively apply the function for the children first
-        toPrune = toPrune && wasPrunned
-        push!(childrenDistribution, childDistribution)
+        childDistribution, isLeafs = chiSquarePruning(root.children[i],filteredSet,domains) # Recursively apply the function for the children first
+        areChildrenLeafs &= isLeafs
+        push!(childrenDistributions, childDistribution)
     end 
 
-    if !toPrune
-        return (currentDistribution, false) #if a direct child wasnt merged with its children (aka to become leaf)
-    end
-
-    expectedProbabilities = map(childDistribution -> 1.0 * sum(childDistribution) / nrow(df),childrenDistribution) # p(first children) = # of elements in subset / # of elements in the set
-    expectedDistributions = []
-    for probability in expectedProbabilities
-        expectedDistribution = map(distribution -> distribution * probability,currentDistribution)
-        push!(expectedDistributions,expectedDistribution)
-    end
-
-    K = 0.0
-    for i in 1:length(childrenDistribution)
-        for j in 1:length(childrenDistribution[i])
-            K+= (childrenDistribution[i][j] - expectedDistributions[i][j])^2 / expectedDistributions[i][j]
-        end
-    end
-
-    degreeOfFreedom = (length(domains[1]) - 1) * (length(domains[root.feature]) - 1)
-    pValue = ccdf(Chisq(degreeOfFreedom),K)
-
-    if pValue > threshold
-        println("Prunned")
+    if areChildrenLeafs && isPrunable(currentDistribution,childrenDistributions,threshold) #prune the children only when the condition is true and the children are themselves leafs
         root.children = ID3Node[]
         root.feature = -1                
         root.isLeaf = true
@@ -261,32 +267,16 @@ function chiSquarePruning(root::ID3Node,df::DataFrame, domains::Array{Array{Stri
     return (currentDistribution,false)
 end
 
-function dfs(root::ID3Node, domains::Array{Array{String,1},1})
-    if root.isLeaf
-        println("Leaf")
-        return
-    end
-
-    println("Curr child is separating by $(root.feature)")
-
-    for i in 1:length(root.children)
-        println("Going child $(domains[root.feature][i])")
-        dfs(root.children[i],domains)
-    end
-end
-
 #Binary classification
 function DecisionTreeClassificationConfMatrix(df::DataFrame, domains::Array{Array{String,1},1}; kfold = 10, setMinPopulation = 14)
     kFoldPlan::Array{Array{Int64,1},1} = stratifiedKFold(df,domains[1],kfold)
     accumulativeConfMatrix = ConfusionMatrix(0.0,0.0,0.0,0.0)
 
-    for i in 1:1
+    for i in 1:kfold
         trainDataSetIndeces = reduce(vcat,kFoldPlan[Not(i)]) #merge all training folds into one
         tree = createID3Tree(df[trainDataSetIndeces,:],domains, setThreshold = setMinPopulation)
         chiSquarePruning(tree,df[trainDataSetIndeces,:],domains)
         confMatrix = validateModelConfusionMatrix(df[kFoldPlan[i],:],tree,domains)
-
-        dfs(tree,domains)
 
         accumulativeConfMatrix.truePositive += confMatrix.truePositive
         accumulativeConfMatrix.falsePositive += confMatrix.falsePositive
@@ -316,71 +306,16 @@ function checkForFeatures(remainingFeatures::Array{Int64,1})
     return featuresSets
 end
 
+
 df = CSV.File("./data/breast-cancer.data", header=false,types=[String for i in 1:10]) |> DataFrame |> unique
 
+println("WTF")
 const missingValuesThreshold = 1.0 * size(df, 2) / 2
 const missingValueSign = "?"
 
 domains = [unique(filter(x->x!=missingValueSign,df[:,i])) for i in 1:ncol(df)]
 fillValues!(df,domains)
 
-
-
-#=
-for mssingFeatures in checkForFeatures([i for i in 1:size(df,2)])
-    newDomains=domains[Not(mssingFeatures)]
-
-    bestPopulationThreshold = 1
-    bestMeanAccuracy = 0.0
-    for i in 1:20
-        meanAcc = 0.0
-        meanAccGivenSetThreshold = 0.0
-        for j in 1:10
-            df = df[shuffle(1:size(df, 1)), :];
-            meanAcc += DecisionTreeClassification(df[:,Not(mssingFeatures)],newDomains,setMinPopulation = i) / 10
-        end
-        if bestMeanAccuracy < meanAcc
-            bestMeanAccuracy = meanAcc
-            bestPopulationThreshold = i
-        end
-        #@printf("For setThreshold %d the accuracy is %.6f\n",i,meanAcc)
-    end
-    println("Missing features :")
-    println(mssingFeatures)
-    @printf("Mean accuracy %.6f with population threshold %d \n",bestMeanAccuracy,bestPopulationThreshold)
-
-end=#
-
-
 df = df[shuffle(1:size(df, 1)), :];
 confMatrix = DecisionTreeClassificationConfMatrix(df[:,Not([2,5])], domains[Not(2,5)],setMinPopulation = 12)
 println(confMatrix)
-
-
-#df = DataFrame(Y=["True","True","True","True","False","False","False","False","False","True"],
-#               X1 = ["True","True","True","True","False","False","False","False","False","False"],
-#               X2 = ["True","True","False","False","True","True","True","True","True","False"])
-
-#println(df)
-
-#leftLeftChild = ID3Node(-1,ID3Node[],"True",true)
-#leftRightChild = ID3Node(-1,ID3Node[],"False",true)
-
-#leftChild = ID3Node(-1,ID3Node[],"True",true)
-#rightChild = ID3Node(3,[leftLeftChild,leftRightChild],"False",false)
-
-#root = ID3Node(2,[leftChild,rightChild],"True",false)
-#println(df)
-
-#domains = [["True","False"],["True","False"],["True","False"]]
-
-# 5 vs 5
-# left child (False) 1 vs 5
-# right child 4 vs 0
-# 5*4/10 = 2 (x2)
-# 5*6/10 = 3 (x3)
-
-# K = (2-4)^2/2 + (2-0)^2/2 + (3 - 5)^2/3 + (3-1)^2/3 = 2 + 2 + 4/3 + 4/3 = 4 + 8/3 ~ 6.7
-#chiSquarePruning(root,df,domains)
-
-#dfs(root, domains)
