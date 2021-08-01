@@ -252,8 +252,8 @@ function chiSquarePruning(root::ID3Node,df::DataFrame, domains::Array{Array{Stri
     for i in 1:length(root.children)
         featureVal = domains[root.feature][i]
         filteredSet = df[df[:,root.feature] .== featureVal,:] # Get subset of elements, whose value of the particular feature is ...
-        childDistribution, isLeafs = chiSquarePruning(root.children[i],filteredSet,domains) # Recursively apply the function for the children first
-        areChildrenLeafs &= isLeafs
+        childDistribution, isLeaf = chiSquarePruning(root.children[i],filteredSet,domains) # Recursively apply the function for the children first
+        areChildrenLeafs &= isLeaf
         push!(childrenDistributions, childDistribution)
     end 
 
