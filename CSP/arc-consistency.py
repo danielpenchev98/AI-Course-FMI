@@ -43,8 +43,6 @@ def AC3(binaryConstraints: List[Constraint], domains: List[List[int]]) -> bool:
         if len(domains[arc.varA]) == 0:
             return False
         for constraint in graph[arc.varA]:
-            if constraint[0] == arc.varB:
-                continue
             arcs.put(Constraint(constraint[0],arc.varA,constraint[1]))
 
     return True
