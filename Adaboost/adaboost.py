@@ -62,7 +62,7 @@ def calculate_gini(dataset: pd.DataFrame, featureName: str)->float:
     feature_value_count = dataset.groupby(featureName).size()
     distributions = []
     for featureValue in feature_values:
-        distribution = dataset[dataset.loc[:,featureName] == featureValue].groupby(CLASS_COLUMN).size()/feature_value_count[feature_values]
+        distribution = dataset[dataset[featureName] == featureValue].groupby(CLASS_COLUMN).size()/feature_value_count[feature_values]
         distributions.append(np.array(distribution,dtype=np.float32))
 
     distributions = np.array(distributions, dtype=object)
@@ -99,10 +99,7 @@ def get_missclassified(dataset: pd.DataFrame, stump: TreeStump)-> np.ndarray:
 
 def sample_dataset(dataset: pd.DataFrame):
     dataset_size = len(dataset)
-
-    row_indices = np.random.choice(np.arange(dataset_size),dataset_size,p=dataset[ENTITY_WEIGHT_COLUMN])
-    dataset = dataset.loc[row_indices,:]
-
+    dataset = dataset.sample(n=dataset_size,weights=ENTITY_WEIGHT_COLUMN, replace=True, ignore_index=True)
     #reset the row indices
     dataset.reset_index(drop=True, inplace=True)
     #normalize entity weights
