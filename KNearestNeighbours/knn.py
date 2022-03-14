@@ -11,7 +11,7 @@ class Node:
         self.separator_value = record[separator_dim_idx]
         self.left_child = left_child
         self.right_child = right_child
-        self.position = record[:-1].tolist()
+        self.coords = record[:-1].tolist()
         self.area = area
 
 class KDTree:
@@ -48,16 +48,16 @@ class KDTree:
         heap = self._create_dummy_max_heap(k)
         self._nearest_neighbours_rec(target_record, self.root, heap)
         
-        return [element[2] for element in heap]
+        return [element[1] + [element[2]] for element in heap]
     
     def _nearest_neighbours_rec(self, target_record, curr_node, heap):
         if curr_node == None:
             return
         
-        distance_to_current_node = distance_between_records(target_record, curr_node.position)
+        distance_to_current_node = distance_between_records(target_record, curr_node.coords)
         if self._get_max_distance(heap) > distance_to_current_node:
             heapq.heappop(heap)
-            self._push_to_heap(heap,(distance_to_current_node, curr_node.position, curr_node.target_value))
+            self._push_to_heap(heap,(distance_to_current_node, curr_node.coords, curr_node.target_value))
         
         first_child_to_traverse, second_child_to_traverse = curr_node.left_child, curr_node.right_child
         if curr_node.separator_value < target_record[curr_node.separator_dim_idx]: # the order of traversal could lead to branch skips
@@ -140,11 +140,11 @@ if __name__ == "__main__":
     predicted_right = 0
     
     for _,test in test_df.iterrows():
-        neighbours = tree.nearest_neighbours(test[:-1],k=6)
-        prediction = get_most_frequent_element(neighbours)
+        neighbours = tree.nearest_neighbours(test[:-1],k=10)
+        prediction = get_most_frequent_element([neighbour[-1] for neighbour in neighbours])
         
         predicted_right = predicted_right + (1 if test[-1] == prediction else 0)
     
-    print("Accuracy :{}".format(1.0 * predicted_right/test_df.shape[0]))
+    print("Accuracy :{}".format(predicted_right * 1.0 /test_df.shape[0]))
     
     
